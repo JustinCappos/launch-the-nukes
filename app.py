@@ -1,307 +1,196 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
-import secrets
-import re
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, make_response
 import os
-from datetime import datetime, timedelta
+import uuid
+from datetime import datetime
+from mcp_integration import MCPClient
+from job_processor import get_job_queue, JobStatus
 import time
 import asyncio
-from llm_providers import OllamaProvider  # or GeminiProvider
-from mcp_integration import MCPClient
-from database import init_db, create_user, authenticate_user, get_user, username_exists
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'launch-the-nukes-secret-key-2025-prod')
 
-# Use a consistent secret key for production
-SECRET_KEY = os.environ.get('SECRET_KEY', 'launch-the-nukes-secret-key-2025-prod')
-app.secret_key = SECRET_KEY
+# Redis configuration
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 
-# Initialize database on startup
-init_db()
+# TODO: This would become unnecessary if we can read off of yaml files.
+# Cache for MCP servers (5 minute cache)
+_mcp_cache = {'servers': {}, 'last_update': 0}
+MCP_CACHE_DURATION = 300  # 5 minutes
 
-# Session configuration for production
-app.permanent_session_lifetime = timedelta(days=7)  # Sessions last 7 days
-app.config['SESSION_COOKIE_SECURE'] = True
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_NAME'] = 'launch_nukes_session'
-
-
-def check_authentication():
-    """Check if user is authenticated and session is valid"""
-    print(f"DEBUG: Session contents: {dict(session)}")  # Debug session
+def get_cached_mcp_servers():
+    """Get MCP servers with caching to avoid slow dashboard loads"""
+    current_time = time.time()
     
-    if 'username' not in session:
-        print("DEBUG: No username in session")
-        return False
+    # Check if cache is still valid
+    if current_time - _mcp_cache['last_update'] < MCP_CACHE_DURATION:
+        return _mcp_cache['servers']
     
-    user = get_user(session['username'])
-    if not user:
-        print(f"DEBUG: User {session['username']} not found in database")
-        session.clear()
-        return False
-    
-    if 'user_id' not in session:
-        print("DEBUG: Adding missing user_id to session")
-        session['user_id'] = user['id']
-        session.permanent = True
-    
-    print(f"DEBUG: Authentication successful for user: {session['username']}")
-    return True
+    # Cache expired, refresh it
+    try:
+        mcp_client = MCPClient()
+        # Run the async method synchronously
+        servers = asyncio.run(mcp_client.list_tools())
+        _mcp_cache['servers'] = servers
+        _mcp_cache['last_update'] = current_time
+        return servers
+    except Exception as e:
+        print(f"Error loading MCP servers: {e}")
+        # Return cached servers if available, otherwise empty dict
+        return _mcp_cache['servers'] if _mcp_cache['servers'] else {}
 
+def get_user_id():
+    """Get or create anonymous user ID from cookie"""
+    user_id = request.cookies.get('user_id')
+    if not user_id:
+        user_id = str(uuid.uuid4())
+    return user_id
+
+def set_user_cookie(response, user_id):
+    """Set user ID cookie with 30 day expiration (refresh on each visit)"""
+    response.set_cookie('user_id', user_id, max_age=30*24*60*60, httponly=True, secure=False, samesite='Lax')
 
 @app.route('/')
 def index():
-    """Redirect to login if not authenticated, dashboard if authenticated"""
-    if check_authentication():
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
-
-# Remove or comment out login and signup routes
-#@app.route('/login', methods=['GET', 'POST'])
-def login():
-    """Login page and authentication"""
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        
-        if not username or not password:
-            flash('Username and password are required', 'error')
-            return render_template('login.html')
-        
-        if authenticate_user(username, password):
-            session.permanent = True  # Make session permanent
-            session['username'] = username
-            session['login_time'] = datetime.now().isoformat()
-            session['user_id'] = get_user(username)['id']
-            flash('Login successful!', 'success')
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid username or password', 'error')
-    
-    return render_template('login.html')
-
-#@app.route('/signup', methods=['GET', 'POST'])
-def signup():
-    """Signup page and user registration"""
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
-        email = request.form.get('email', '').strip()
-        
-        # Validation
-        if not username or not password:
-            flash('Username and password are required', 'error')
-        elif len(username) < 3:
-            flash('Username must be at least 3 characters long', 'error')
-        elif len(password) < 6:
-            flash('Password must be at least 6 characters long', 'error')
-        elif password != confirm_password:
-            flash('Passwords do not match', 'error')
-        elif username_exists(username):
-            flash('Username already exists', 'error')
-        else:
-            # Create user
-            if create_user(username, password, email):
-                session.permanent = True  # Make session permanent
-                session['username'] = username
-                session['login_time'] = datetime.now().isoformat()
-                session['user_id'] = get_user(username)['id']
-                flash('Account created successfully!', 'success')
-                return redirect(url_for('dashboard'))
-            else:
-                flash('Error creating account. Please try again.', 'error')
-    
-    return render_template('signup.html')
-
-@app.route('/logout')
-def logout():
-    """Logout user and clear session"""
-    username = session.get('username', 'User')
-    session.clear()
-    flash(f'Goodbye {username}! You have been logged out.', 'info')
-    return redirect(url_for('login'))
+    return redirect(url_for('dashboard'))
 
 @app.route('/dashboard')
 def dashboard():
-    # Allow all users, mark as guest if not logged in
-    username = session.get('username', None)
-    if not username:
-        session['guest'] = True
-        username = 'Guest'
-    else:
-        session['guest'] = False
-    # Get user info and MCP servers data for display
-    user_info = get_user(username) if not session.get('guest', False) else None
-    mcp_client = MCPClient()
-    available_servers = mcp_client.get_available_servers()
-    tools_by_server = asyncio.run(mcp_client.list_tools())
-    return render_template(
-        'dashboard.html', 
-        username=username,
-        user_info=user_info,
-        available_servers=available_servers,
-        tools_by_server=tools_by_server,
-        is_guest=session.get('guest', False)
-    )
+    user_id = get_user_id()
+    
+    # Get MCP servers with caching
+    mcp_servers = get_cached_mcp_servers()
+    
+    response = make_response(render_template('dashboard.html', 
+                                           username=f'User-{user_id[:8]}',
+                                           mcp_servers=mcp_servers))
+    set_user_cookie(response, user_id)
+    return response
 
 @app.route('/submit', methods=['POST'])
 def submit():
-    # Allow all users to submit prompts
-    prompt = request.form.get('prompt', '').strip()
-    if not prompt:
-        flash('Please enter a prompt', 'error')
+    user_id = get_user_id()
+    user_input = request.form.get('user_input', '').strip()
+    
+    if not user_input:
+        flash('Please enter some text', 'error')
         return redirect(url_for('dashboard'))
-
-    # === LLM and MCP Integration ===
-    import asyncio
-    mcp_client = MCPClient()
-    tools_by_server = asyncio.run(mcp_client.list_tools())
-    tool_to_server_map = {}
     
-    ollama_tools = []
-    for server, tools in tools_by_server.items():
-        for tool in tools:
-            tool_to_server_map[tool.name] = server
-            
-            ollama_tool = {
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description,
-                }
-            }
-            
-            # Add parameters if they exist
-            if hasattr(tool, 'inputSchema') and tool.inputSchema:
-                ollama_tool["function"]["parameters"] = tool.inputSchema
-            
-            ollama_tools.append(ollama_tool)
+    # Get job queue (connects to Redis directly)
+    job_queue = get_job_queue()
+    if not job_queue:
+        flash('Job processing service unavailable', 'error')
+        return redirect(url_for('dashboard'))
     
-    messages = [
-        {
-            "role": "system", 
-            "content": "You are a security analysis assistant. Analyze user prompts and use available tools when appropriate for security operations. Be decisive about tool usage."
-        },
-        {
-            "role": "user", 
-            "content": prompt
-        }
-    ]
+    job_id = job_queue.add_job(user_id, f'User-{user_id[:8]}', user_input)
     
-    print(f"DEBUG: Sending {len(ollama_tools)} tools to LLM")
+    response = make_response(redirect(url_for('job_status', job_id=job_id)))
+    set_user_cookie(response, user_id)
+    return response
+
+@app.route('/job/<job_id>')
+def job_status(job_id):
+    user_id = get_user_id()
+    job_queue = get_job_queue()
     
-    # Use tool calling with Ollama
-    llm = OllamaProvider(model="llama3.2")
-    response = llm.generate_with_tools(messages, ollama_tools)
-
-    available_servers = mcp_client.get_available_servers()
-    total_mcps = len(available_servers)
-
-    used_servers = set()
-    tool_call_results = []
-    llm_message = response.get("content", "No response from LLM")
-    analysis = llm_message  # Use the content as analysis
+    if not job_queue:
+        flash('Job processing service unavailable', 'error')
+        return redirect(url_for('dashboard'))
     
-    # Process native tool calls from Ollama
-    tool_calls = response.get("tool_calls", [])
+    job = job_queue.get_job(job_id)
     
-    if tool_calls:
-        print(f"DEBUG: Processing {len(tool_calls)} tool calls")
-        for tool_call in tool_calls:
-            try:
-                # Extract tool call information
-                if "function" in tool_call:
-                    function_info = tool_call["function"]
-                    tool_name = function_info.get("name")
-                    
-                    # Parse arguments (they might be JSON string)
-                    args_raw = function_info.get("arguments", {})
-                    if isinstance(args_raw, str):
-                        import json
-                        args = json.loads(args_raw)
-                    else:
-                        args = args_raw
-                    
-                    # Convert argument types based on MCP tool schema
-                    if tool_name in tool_to_server_map:
-                        server_name = tool_to_server_map[tool_name]
-                        
-                        # Get the tool schema for type conversion
-                        tool_schema = None
-                        for server, tools in tools_by_server.items():
-                            if server == server_name:
-                                for tool in tools:
-                                    if tool.name == tool_name:
-                                        tool_schema = tool.inputSchema
-                                        break
-                        
-                        # Convert argument types if we have the schema
-                        if tool_schema and 'properties' in tool_schema:
-                            converted_args = {}
-                            for arg_name, arg_value in args.items():
-                                if arg_name in tool_schema['properties']:
-                                    expected_type = tool_schema['properties'][arg_name].get('type', 'string')
-                                    
-                                    try:
-                                        if expected_type == 'number' and isinstance(arg_value, str):
-                                            converted_args[arg_name] = float(arg_value)
-                                        elif expected_type == 'integer' and isinstance(arg_value, str):
-                                            converted_args[arg_name] = int(arg_value)
-                                        elif expected_type == 'boolean' and isinstance(arg_value, str):
-                                            converted_args[arg_name] = arg_value.lower() in ('true', '1', 'yes')
-                                        else:
-                                            converted_args[arg_name] = arg_value
-                                    except (ValueError, TypeError):
-                                        # If conversion fails, keep original value
-                                        converted_args[arg_name] = arg_value
-                                else:
-                                    converted_args[arg_name] = arg_value
-                            args = converted_args
-                        
-                        used_servers.add(server_name)
-                        print(f"DEBUG: Calling {tool_name} on {server_name} with converted args: {args}")
-                        result = asyncio.run(mcp_client.call_tool(server_name, tool_name, args))
-                        tool_call_results.append((tool_name, result))
-                    else:
-                        print(f"DEBUG: Unknown tool: {tool_name}")
-                        
-            except Exception as e:
-                print(f"DEBUG: Error processing tool call: {e}")
-                tool_call_results.append((tool_call.get("function", {}).get("name", "unknown"), f"Error: {str(e)}"))
-    else:
-        print("DEBUG: No tool calls in response")
+    if not job:
+        flash('Job not found', 'error')
+        return redirect(url_for('dashboard'))
+    
+    response = make_response(render_template('job_status.html', 
+                                           job=job, 
+                                           job_id=job_id,
+                                           username=f'User-{user_id[:8]}'))
+    set_user_cookie(response, user_id)
+    return response
 
-    used_servers = list(used_servers)
-    num_servers_triggered = len(used_servers)
-    risk_level = 'HIGH' if used_servers else 'SAFE'
-    risk_color = 'red' if used_servers else 'green'
+@app.route('/api/job/<job_id>/status')
+def api_job_status(job_id):
+    job_queue = get_job_queue()
+    
+    if not job_queue:
+        return jsonify({'error': 'Job processing service unavailable'}), 503
+    
+    job = job_queue.get_job(job_id)
+    
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    return jsonify({
+        'id': job_id,
+        'status': job.status.value,
+        'progress': job.progress,
+        'progress_message': job.progress_message,
+        'result': job.result,
+        'queue_position': job_queue.get_queue_position(job_id),
+        'estimated_time': job_queue.get_estimated_time(job_id)
+    })
 
-    print(f"DEBUG: Prompt: {prompt}")
-    print(f"DEBUG: LLM Response content: {response.get('content', 'No content')}")
-    print(f"DEBUG: Tool calls: {response.get('tool_calls', 'No tool calls')}")
-    print(f"DEBUG: Available MCP servers: {list(available_servers.keys())}")
-    print(f"DEBUG: Triggered servers: {used_servers}")
+@app.route('/api/mcp/servers')
+def api_mcp_servers():
+    """API endpoint to get MCP servers (uses cache)"""
+    servers = get_cached_mcp_servers()
+    return jsonify(servers)
 
-    return render_template(
-        'results.html',
-        prompt=prompt,
-        risk_level=risk_level,
-        risk_color=risk_color,
-        username=session['username'],
-        total_mcps=total_mcps,
-        used_servers=used_servers,
-        num_servers_triggered=num_servers_triggered,
-        llm_message=llm_message,
-        llm_content=response.get("content", ""),  # Separate content
-        llm_tool_calls=response.get("tool_calls", []),  # Separate tool calls
-        tool_call_results=tool_call_results,
-        analysis=analysis
-    )
+@app.route('/api/queue/stats')
+def api_queue_stats():
+    job_queue = get_job_queue()
+    
+    if not job_queue:
+        return jsonify({'error': 'Job processing service unavailable'}), 503
+    
+    stats = job_queue.get_queue_stats()
+    return jsonify(stats)
+
+@app.route('/results/<job_id>')
+def results(job_id):
+    user_id = get_user_id()
+    job_queue = get_job_queue()
+    job = job_queue.get_job(job_id)
+    
+    if not job or job.status != JobStatus.COMPLETED:
+        flash('Job not found or not completed', 'error')
+        return redirect(url_for('dashboard'))
+    
+    response = make_response(render_template('results.html', 
+                                           **job.result, 
+                                           username=f'User-{user_id[:8]}'))
+    set_user_cookie(response, user_id)
+    return response
+
+@app.route('/my-jobs')
+def my_jobs():
+    user_id = get_user_id()
+    job_queue = get_job_queue()
+    user_jobs = job_queue.get_user_jobs(user_id)
+    
+    response = make_response(render_template('my_jobs.html', 
+                                           jobs=user_jobs, 
+                                           username=f'User-{user_id[:8]}'))
+    set_user_cookie(response, user_id)
+    return response
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint - doesn't require user tracking"""
+    job_queue = get_job_queue()
+    redis_status = "healthy" if job_queue else "unavailable"
+    
+    return jsonify({
+        'status': 'healthy',
+        'redis': redis_status,
+        'timestamp': datetime.now().isoformat()
+    })
 
 @app.errorhandler(404)
 def not_found(error):
     return render_template('404.html'), 404
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8080) 
+    app.run(debug=True, host='0.0.0.0', port=8080)

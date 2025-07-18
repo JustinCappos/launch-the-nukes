@@ -53,14 +53,28 @@ launch-the-nukes/
    pip install -r requirements.txt
    ```
 
-3. **Run the application**
+3. **Install Redis**
    ```bash
+   # macOS
+   brew install redis && brew services start redis
+   
+   # Ubuntu/Debian
+   sudo apt install redis-server && sudo systemctl start redis-server
+   ```
+
+4. **Run the application**
+   ```bash
+   # Start background workers
+   # Corresponds to number of jobs that can be processed parallely
+   python worker.py --workers 2 
+   
+   # Start Flask app
    python app.py
    ```
 
-4. **Access the application**
+5. **Access the application**
    - Open your browser and go to `http://localhost:8080`
-   - Use demo credentials: `admin` / `password123`
+   - No login required - anonymous users supported
 
 
 ## Pages & Functionality

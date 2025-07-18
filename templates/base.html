@@ -38,11 +38,22 @@
     <!-- Navigation -->
     <nav class="bg-gray-900 text-white shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-center h-16 items-center"> <!-- Center content horizontally and vertically -->
-                <a href="{{ url_for('dashboard') }}" class="flex items-center space-x-2">
-                    <span class="text-2xl">🚀</span>
-                    <span class="text-xl font-bold">Launch the Nukes</span>
-                </a>
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="{{ url_for('dashboard') }}" class="flex items-center space-x-2">
+                        <span class="text-2xl">🚀</span>
+                        <span class="text-xl font-bold">Launch the Nukes</span>
+                    </a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    {% if session.username %}
+                        <span class="text-gray-300">Welcome, {{ session.username }}</span>
+                    {% else %}
+                        <a href="{{ url_for('my_jobs') }}" class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium transition-colors">
+                            My Jobs
+                        </a>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </nav>

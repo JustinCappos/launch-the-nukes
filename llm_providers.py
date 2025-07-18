@@ -1,8 +1,11 @@
 import json
 import logging
 import os
+import time
 from abc import ABC, abstractmethod
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class LLMProvider(ABC):
@@ -13,6 +16,11 @@ class LLMProvider(ABC):
     @abstractmethod
     def generate_response_sync(self, prompt: str) -> str:
         pass
+
+    def generate_with_tools_streaming(self, messages: list, tools: list = None, progress_callback=None) -> dict:
+        """Optional streaming method. Default implementation falls back to non-streaming."""
+        # Default implementation - subclasses can override for streaming support
+        return self.generate_with_tools(messages, tools) if hasattr(self, 'generate_with_tools') else {}
 
     @abstractmethod
     def close(self):
@@ -116,6 +124,137 @@ class OllamaProvider(LLMProvider):
         except Exception as e:
             logger.error(f"Error calling Ollama with tools: {e}")
             return self._mock_tool_response(messages, error=str(e))
+
+    def generate_with_tools_streaming(self, messages: list, tools: list = None, progress_callback=None) -> dict:
+        """Generate response with tool calling support using Ollama's streaming API for real-time progress."""
+        if not self.client:
+            logger.warning("No HTTP client available - falling back to non-streaming")
+            return self._mock_tool_response(messages)
+        
+        try:
+            logger.info("Starting Ollama streaming API call...")
+            
+            payload = {
+                "model": self.model,
+                "messages": messages,
+                "stream": True,  # Enable streaming
+                "options": {
+                    "temperature": 0.1,
+                    "top_p": 0.9,
+                    "num_predict": 2048,
+                },
+            }
+            
+            # Add tools if provided (for models that support it)
+            if tools:
+                payload["tools"] = tools
+                logger.info(f"Added {len(tools)} tools to payload")
+            
+            response = self.client.post(
+                f"{self.base_url}/api/chat",
+                json=payload,
+                headers={"Accept": "application/x-ndjson"}
+            )
+            
+            response.raise_for_status()
+            
+            # Stream processing with throttled progress updates
+            full_content = ""
+            tool_calls = []
+            token_count = 0
+            max_tokens = 2048
+            last_update_time = 0
+            UPDATE_INTERVAL = 0.5  # Update every 0.5 seconds for responsive feedback
+            
+            # Progress range: 20% (LLM start) to 80% (LLM complete)
+            PROGRESS_START = 20
+            PROGRESS_END = 80
+            
+            # Initial progress update
+            if progress_callback:
+                progress_callback(PROGRESS_START, "Starting LLM response generation...")
+            
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        # Parse streaming response
+                        data = json.loads(line)
+                        
+                        # Extract message content
+                        if "message" in data:
+                            message = data["message"]
+                            
+                            # Handle content chunks
+                            if "content" in message and message["content"]:
+                                content_chunk = message["content"]
+                                full_content += content_chunk
+                                
+                                # Rough token estimation (word count approximation)
+                                token_count += len(content_chunk.split())
+                                
+                                # Throttled progress updates
+                                current_time = time.time()
+                                if current_time - last_update_time > UPDATE_INTERVAL:
+                                    # Calculate progress within the 20-80% range
+                                    token_progress = min(token_count / max_tokens, 1.0)
+                                    current_progress = PROGRESS_START + (PROGRESS_END - PROGRESS_START) * token_progress
+                                    
+                                    if progress_callback:
+                                        progress_callback(
+                                            int(current_progress), 
+                                            f"Generating response... {token_count}/{max_tokens} tokens ({int(token_progress*100)}%)"
+                                        )
+                                    last_update_time = current_time
+                            
+                            # Extract tool calls if present
+                            if "tool_calls" in message and message["tool_calls"]:
+                                tool_calls.extend(message["tool_calls"])
+                                
+                                # For tool-only responses, show progress based on tool calls
+                                if not full_content and tool_calls:
+                                    current_time = time.time()
+                                    if current_time - last_update_time > UPDATE_INTERVAL:
+                                        # Progress for tool-only responses
+                                        tool_progress = min(len(tool_calls) / 10, 1.0)  # Assume max 10 tools
+                                        current_progress = PROGRESS_START + (PROGRESS_END - PROGRESS_START) * tool_progress
+                                        
+                                        if progress_callback:
+                                            progress_callback(
+                                                int(current_progress), 
+                                                f"Processing tool calls... {len(tool_calls)} tools found"
+                                            )
+                                        last_update_time = current_time
+                        
+                        # Check if this is the final chunk
+                        if data.get("done", False):
+                            # Final progress update
+                            if progress_callback:
+                                if full_content:
+                                    progress_callback(PROGRESS_END, f"Response complete - {token_count} tokens generated")
+                                elif tool_calls:
+                                    progress_callback(PROGRESS_END, f"Tool calls complete - {len(tool_calls)} tools selected")
+                                else:
+                                    progress_callback(PROGRESS_END, f"Response complete - no content generated")
+                            
+                            logger.info(f"Streaming complete - {token_count} tokens, {len(tool_calls)} tool calls")
+                            break
+                            
+                    except json.JSONDecodeError:
+                        continue
+                    except Exception as e:
+                        logger.warning(f"Error processing streaming chunk: {e}")
+                        continue
+            
+            return {
+                "message": {"content": full_content, "role": "assistant"},
+                "content": full_content,
+                "tool_calls": tool_calls
+            }
+            
+        except Exception as e:
+            logger.error(f"Streaming failed with error: {e}")
+            logger.info("Falling back to non-streaming mode")
+            return self.generate_with_tools(messages, tools)
 
     def _mock_response(self, prompt: str, error: str | None = None) -> str:
         content = (

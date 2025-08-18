@@ -26,7 +26,7 @@ spec:
             - name: REDIS_URL
               value: "redis://REDIS_HOST_IP:6379/0"
             - name: OLLAMA_CLOUD_URL
-              value: "OLLAMA_CLOUD_URL"
+              value: "OLLAMA_CLOUD_URL_VALUE"
             resources:
               limits:
                 cpu: "1"

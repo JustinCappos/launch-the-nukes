@@ -4,7 +4,7 @@ kind: Service
 metadata:
   name: launch-the-nukes-worker
   annotations:
-    run.googleapis.com/ingress: all
+    run.googleapis.com/ingress: internal
 spec:
   template:
     metadata:
@@ -17,6 +17,7 @@ spec:
         autoscaling.knative.dev/minScale: "1"  # Keep at least 1 worker running
         deploy.nonce/timestamp: "DEPLOY_NONCE"
     spec:
+      serviceAccountName: launch-nukes-worker@PROJECT_ID.iam.gserviceaccount.com
       containerConcurrency: 1
       timeoutSeconds: 3600
       containers:
@@ -35,7 +36,7 @@ spec:
         - name: REDIS_URL
           value: "redis://REDIS_HOST_IP:6379/0"
         - name: OLLAMA_URL
-          value: "OLLAMA_CLOUD_URL"
+          value: "OLLAMA_URL_PLACEHOLDER"
         - name: NUM_WORKERS
           value: "2"
         resources:

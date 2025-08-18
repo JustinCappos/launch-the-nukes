@@ -223,13 +223,15 @@ class LLMProcessor:
         try:
             import httpx
             from config import config
+            from auth_utils import get_authenticated_headers
             ollama_url = config.effective_ollama_url
             
             print(f"🔍 Checking Ollama health at: {ollama_url}")
             
             # Use longer timeout for Cloud Run internal communication
             timeout = 30.0 if config.is_production else 10.0
-            client = httpx.Client(timeout=timeout)
+            headers = get_authenticated_headers(ollama_url)
+            client = httpx.Client(timeout=timeout, headers=headers)
             
             # Check if service is responding
             response = client.get(f"{ollama_url}/api/tags")
@@ -676,29 +678,59 @@ def check_services():
     
     # Check Redis
     try:
-        r = redis.Redis(host='localhost', port=6379, db=0)
-        r.ping()
-        print("✅ Redis is running")
+        # Prefer configured REDIS_URL (works locally and in Cloud Run with Memorystore)
+        from urllib.parse import urlparse
+
+        redis_url = os.environ.get('REDIS_URL', config.REDIS_URL)
+        client = redis.from_url(redis_url)
+        client.ping()
+
+        parsed = urlparse(redis_url)
+        host = parsed.hostname or 'localhost'
+        port = parsed.port or 6379
+        print(f"✅ Redis is reachable at {host}:{port}")
     except Exception as e:
-        print(f"❌ Redis not accessible: {e}")
-        print("   Please start Redis with: redis-server")
+        print(f"❌ Redis not accessible using configured URL: {os.environ.get('REDIS_URL', config.REDIS_URL)}")
+        print(f"   Error: {e}")
+        if config.is_production:
+            print("   In Cloud Run, ensure your service has VPC access and the REDIS_HOST/REDIS_URL points to Cloud Memorystore.")
+        else:
+            print("   For local dev, start Redis with: redis-server")
     
     # Check Ollama
     try:
         import httpx
-        from config import config
+        from auth_utils import get_authenticated_headers
         
         # Use the configured Ollama URL, falling back to cloud URL if available
         ollama_url = config.effective_ollama_url
-            
+
         print(f"🔍 Checking Ollama health at: {ollama_url}")
-        
-        client = httpx.Client(timeout=5.0)
-        response = client.get(f"{ollama_url}/api/tags")
-        if response.status_code == 200:
-            print("✅ Ollama service is running")
-        else:
-            print("⚠️  Ollama service responded with error")
+
+        headers = get_authenticated_headers(ollama_url)
+        client = httpx.Client(timeout=10.0, headers=headers)
+
+        # Try a few times as Cloud Run may be cold starting
+        max_attempts = 5 if config.is_production else 1
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = client.get(f"{ollama_url}/api/tags")
+                if response.status_code == 200:
+                    print("✅ Ollama service is running")
+                    break
+                elif response.status_code in (401, 403):
+                    print(f"❌ Ollama auth failed (HTTP {response.status_code}). Check IAM 'run.invoker' for caller service account.")
+                    break
+                elif response.status_code == 404:
+                    # Often seen during cold start or before model loads; not fatal
+                    print("⚠️  Ollama responded 404 (likely still warming up). Will retry..." if attempt < max_attempts else "⚠️  Ollama responded 404.")
+                else:
+                    print(f"⚠️  Ollama service error: HTTP {response.status_code}")
+            except Exception as inner_e:
+                if attempt >= max_attempts:
+                    raise inner_e
+                print(f"⏳ Ollama not ready yet ({inner_e}). Retrying...")
+                time.sleep(3 * attempt)
     except Exception as e:
         print(f"❌ Ollama connection failed: {e}")
         print("Ollama service is not running")

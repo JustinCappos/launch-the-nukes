@@ -17,6 +17,7 @@ spec:
         autoscaling.knative.dev/minScale: "0"
         deploy.nonce/timestamp: "DEPLOY_NONCE"
     spec:
+      serviceAccountName: launch-nukes-frontend@PROJECT_ID.iam.gserviceaccount.com
       containerConcurrency: 1000
       timeoutSeconds: 300
       containers:

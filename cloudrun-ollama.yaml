@@ -4,8 +4,7 @@ kind: Service
 metadata:
   name: launch-nukes-ollama
   annotations:
-    run.googleapis.com/ingress: all
-    run.googleapis.com/launch-stage: BETA
+  run.googleapis.com/ingress: all
 spec:
   template:
     metadata:
@@ -13,12 +12,16 @@ spec:
         run.googleapis.com/execution-environment: gen2
         run.googleapis.com/gpu-type: nvidia-l4
         run.googleapis.com/cpu-boost: "true"
-        run.googleapis.com/gpu-zonal-redundancy: "false"
+        run.googleapis.com/gpu-zonal-redundancy-disabled: "true"
+        run.googleapis.com/vpc-access-connector: launch-nukes-connector
+        run.googleapis.com/vpc-access-egress: private-ranges-only
         autoscaling.knative.dev/maxScale: "3"
         autoscaling.knative.dev/minScale: "0"
+        deploy.nonce/timestamp: "DEPLOY_NONCE"
     spec:
+      serviceAccountName: launch-nukes-ollama@PROJECT_ID.iam.gserviceaccount.com
       containerConcurrency: 10
-      timeoutSeconds: 600
+      timeoutSeconds: 1200
       containers:
       - image: gcr.io/PROJECT_ID/launch-nukes-ollama:latest
         ports:
@@ -28,6 +31,8 @@ spec:
           value: "0.0.0.0"
         - name: OLLAMA_PORT
           value: "11434"
+        - name: OLLAMA_ORIGINS
+          value: "*"
         - name: OLLAMA_MODELS
           value: "/home/ollama/.ollama/models"
         resources:

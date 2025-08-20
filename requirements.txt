@@ -23,3 +23,5 @@ psutil>=5.9.0
 google-cloud-logging>=3.0.0
 google-cloud-redis>=2.0.0
 google-cloud-run>=0.10.0
+google-auth>=2.0.0
+google-auth-httplib2>=0.1.0

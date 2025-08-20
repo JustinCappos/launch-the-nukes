@@ -25,6 +25,20 @@ fi
 gcloud config set project $PROJECT_ID
 
 # Enable required APIs
+echo "� Enabling required APIs..."
+echo "Project: $PROJECT_ID"
+echo "Region: $REGION"
+
+# Check if gcloud is installed and authenticated
+if ! command -v gcloud &> /dev/null; then
+    echo "❌ gcloud CLI not found. Please install it first."
+    exit 1
+fi
+
+# Set project
+gcloud config set project $PROJECT_ID
+
+# Enable required APIs
 echo "📡 Enabling required APIs..."
 gcloud services enable \
     cloudbuild.googleapis.com \
@@ -33,7 +47,37 @@ gcloud services enable \
     compute.googleapis.com \
     container.googleapis.com \
     aiplatform.googleapis.com \
-    vpcaccess.googleapis.com
+    vpcaccess.googleapis.com \
+    iam.googleapis.com
+
+# Create service accounts for secure service-to-service communication
+echo "🔐 Creating service accounts..."
+FRONTEND_SA="launch-nukes-frontend"
+WORKER_SA="launch-nukes-worker"
+OLLAMA_SA="launch-nukes-ollama"
+
+# Create service accounts if they don't exist
+for SA in $FRONTEND_SA $WORKER_SA $OLLAMA_SA; do
+    if ! gcloud iam service-accounts describe "$SA@$PROJECT_ID.iam.gserviceaccount.com" &> /dev/null; then
+        gcloud iam service-accounts create $SA \
+            --display-name="$SA service account"
+        echo "✅ Created service account: $SA"
+    else
+        echo "✅ Service account already exists: $SA"
+    fi
+done
+
+# Grant permissions for frontend to call internal services
+echo "🔗 Setting up service-to-service permissions..."
+gcloud run services add-iam-policy-binding launch-nukes-ollama \
+    --member="serviceAccount:$FRONTEND_SA@$PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/run.invoker" \
+    --region=$REGION || echo "Will set after Ollama deployment"
+
+gcloud run services add-iam-policy-binding launch-the-nukes-worker \
+    --member="serviceAccount:$FRONTEND_SA@$PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/run.invoker" \
+    --region=$REGION || echo "Will set after worker deployment"
 
 # Create Redis instance (Cloud Memorystore)
 echo "🔴 Creating Redis instance..."
@@ -110,43 +154,32 @@ sed -e "s/PROJECT_ID/$PROJECT_ID/g" \
     -e "s/DEPLOY_NONCE/$DEPLOY_NONCE/g" \
     cloudrun-frontend.yaml > cloudrun-frontend-configured.yaml
 
-# Deploy Cloud Run service
-echo "🚀 Deploying Cloud Run service..."
+# Deploy Cloud Run service with service account
+echo "🚀 Deploying Cloud Run frontend service..."
 gcloud run services replace cloudrun-frontend-configured.yaml --region=$REGION
 
-# Allow unauthenticated access to frontend service
-echo "🔓 Setting up public access for frontend service..."
+# Allow unauthenticated access to frontend service ONLY
+echo "🔓 Setting up public access for frontend service only..."
 gcloud run services add-iam-policy-binding $SERVICE_NAME \
     --member="allUsers" \
     --role="roles/run.invoker" \
     --region=$REGION
 
-# Deploy Ollama AI service
-echo "🧠 Deploying Ollama AI service..."
-gcloud run deploy launch-nukes-ollama \
-    --image=gcr.io/$PROJECT_ID/launch-nukes-ollama:latest \
-    --region=$REGION \
-    --port=11434 \
-    --gpu=1 \
-    --gpu-type=nvidia-l4 \
-    --memory=16Gi \
-    --cpu=4 \
-    --min-instances=1 \
-    --max-instances=3 \
-    --concurrency=10 \
-    --timeout=1200 \
-    --execution-environment=gen2 \
-    --cpu-boost \
-    --no-gpu-zonal-redundancy \
-    --set-env-vars="OLLAMA_HOST=0.0.0.0,OLLAMA_PORT=11434,OLLAMA_ORIGINS=*" \
-    --update-annotations="deploy.nonce/timestamp=$DEPLOY_NONCE"
+# Deploy Ollama AI service with internal-only access
+echo "🧠 Deploying Ollama AI service (internal access only)..."
+sed -e "s/PROJECT_ID/$PROJECT_ID/g" \
+    -e "s/DEPLOY_NONCE/$DEPLOY_NONCE/g" \
+    cloudrun-ollama.yaml > cloudrun-ollama-configured.yaml
 
-# Allow unauthenticated access to Ollama service
-echo "🔓 Setting up public access for Ollama AI service..."
-gcloud run services add-iam-policy-binding launch-nukes-ollama \
-    --member="allUsers" \
-    --role="roles/run.invoker" \
+gcloud run services replace cloudrun-ollama-configured.yaml --region=$REGION
+
+# Set service account for Ollama service
+gcloud run services update launch-nukes-ollama \
+    --service-account="$OLLAMA_SA@$PROJECT_ID.iam.gserviceaccount.com" \
     --region=$REGION
+
+# DO NOT allow public access to Ollama - it's internal only
+echo "� Ollama AI service configured for internal access only"
 
 # Get Ollama service URL
 OLLAMA_CLOUD_URL=$(gcloud run services describe launch-nukes-ollama --region=$REGION --format="value(status.url)")
@@ -189,18 +222,32 @@ echo "✅ Services are now publicly accessible"
 echo "📝 Updating worker service configuration..."
 sed -e "s/PROJECT_ID/$PROJECT_ID/g" \
     -e "s/REDIS_HOST_IP/$REDIS_HOST/g" \
-    -e "s|OLLAMA_CLOUD_URL|$OLLAMA_CLOUD_URL|g" \
+    -e "s|OLLAMA_URL_PLACEHOLDER|$OLLAMA_CLOUD_URL|g" \
     -e "s/DEPLOY_NONCE/$DEPLOY_NONCE/g" \
     cloudrun-worker.yaml > cloudrun-worker-configured.yaml
 
-# Deploy Cloud Run worker service
-echo "🔧 Deploying Cloud Run worker service..."
+# Deploy Cloud Run worker service with internal-only access
+echo "🔧 Deploying Cloud Run worker service (internal access only)..."
 gcloud run services replace cloudrun-worker-configured.yaml --region=$REGION
 
-# Allow unauthenticated access to worker service (for health checks)
-echo "🔓 Setting up access for worker service..."
+# DO NOT allow public access to worker service - it's internal only
+echo "🔒 Worker service configured for internal access only"
+
+# Set up service-to-service permissions now that services exist
+echo "� Finalizing service-to-service permissions..."
+gcloud run services add-iam-policy-binding launch-nukes-ollama \
+    --member="serviceAccount:$FRONTEND_SA@$PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/run.invoker" \
+    --region=$REGION
+
 gcloud run services add-iam-policy-binding launch-the-nukes-worker \
-    --member="allUsers" \
+    --member="serviceAccount:$FRONTEND_SA@$PROJECT_ID.iam.gserviceaccount.com" \
+    --role="roles/run.invoker" \
+    --region=$REGION
+
+# Allow worker to call Ollama
+gcloud run services add-iam-policy-binding launch-nukes-ollama \
+    --member="serviceAccount:$WORKER_SA@$PROJECT_ID.iam.gserviceaccount.com" \
     --role="roles/run.invoker" \
     --region=$REGION
 
@@ -211,18 +258,24 @@ WORKER_URL=$(gcloud run services describe launch-the-nukes-worker --region=$REGI
 echo ""
 echo "✅ Deployment complete!"
 echo "🕐 Deploy nonce: $DEPLOY_NONCE"
-echo "🌐 Frontend URL: $SERVICE_URL"
-echo "🔴 Redis host: $REDIS_HOST"
-echo "🧠 Ollama AI service: $OLLAMA_CLOUD_URL"
-echo "⚙️ Worker service: $WORKER_URL"
+echo "🌐 Frontend URL (PUBLIC): $SERVICE_URL"
+echo "🔴 Redis host (PRIVATE): $REDIS_HOST"
+echo "🧠 Ollama AI service (INTERNAL ONLY): $OLLAMA_CLOUD_URL"
+echo "⚙️ Worker service (INTERNAL ONLY): $WORKER_URL"
 echo ""
-echo "To check worker status:"
-echo "curl $WORKER_URL/stats"
+echo "🔒 Security Configuration:"
+echo "  ✅ Frontend: Public access (internet-facing)"
+echo "  🔒 Ollama: Internal access only (VPC + service account auth)"
+echo "  🔒 Worker: Internal access only (VPC + service account auth)"
+echo "  🔒 Redis: Private VPC only"
+echo ""
+echo "To check worker status (internal):"
+echo "gcloud run services proxy launch-the-nukes-worker --port=8080 &"
+echo "curl http://localhost:8080/stats"
 echo ""
 echo "To view logs:"
 echo "gcloud logging read \"resource.type=cloud_run_revision AND resource.labels.service_name=$SERVICE_NAME\" --limit=50 --format=\"table(timestamp,textPayload)\""
 
-# Clean up temporary files
 # Clean up temporary files
 rm -f cloudrun-frontend-configured.yaml cloudrun-worker-configured.yaml cloudrun-ollama-configured.yaml
 rm -f ollama-build.yaml worker-build.yaml

@@ -88,7 +88,11 @@ class OllamaProvider(LLMProvider):
     def _init_client(self):
         try:
             import httpx
-            self.client = httpx.Client(timeout=300.0)
+            from auth_utils import get_authenticated_headers
+            
+            # Get authentication headers for Ollama service
+            headers = get_authenticated_headers(self.base_url)
+            self.client = httpx.Client(timeout=300.0, headers=headers)
         except ImportError:
             logger.warning("httpx not available. Ollama provider will use mock responses.")
 

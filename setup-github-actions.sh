@@ -42,7 +42,7 @@ fi
 # Grant necessary permissions
 echo "Granting permissions to service account..."
 
-# Cloud Run Admin (to deploy and manage services)
+# Cloud Run Admin (to deploy and manage services + IAM policies on Cloud Run services)
 gcloud projects add-iam-policy-binding ${PROJECT_ID} \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
     --role="roles/run.admin"
@@ -56,6 +56,11 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
 gcloud projects add-iam-policy-binding ${PROJECT_ID} \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
     --role="roles/iam.serviceAccountUser"
+
+# Service Account Admin (to create and manage service accounts)
+gcloud projects add-iam-policy-binding ${PROJECT_ID} \
+    --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+    --role="roles/iam.serviceAccountAdmin"
 
 # Cloud Build Editor (for building containers)
 gcloud projects add-iam-policy-binding ${PROJECT_ID} \

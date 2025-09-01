@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DEBUG=true
+      - REDIS_URL=redis://redis:6379/0
+      - NUM_WORKERS=0
+      - SECRET_KEY=launch-the-nukes-docker-dev
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: python app.py
+
+  worker:
+    build: .
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - NUM_WORKERS=2
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: python worker.py --workers 2
+
+volumes:
+  redis_data:

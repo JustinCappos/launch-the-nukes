@@ -1,0 +1,11 @@
+# multi_valid_1.yaml
+server: multi-server-1
+description: Server 1 is valid
+tools:
+  - name: tool-1a
+    description: A tool in server 1
+    properties:
+      - name: prop1
+        type: number
+        description: A number property
+

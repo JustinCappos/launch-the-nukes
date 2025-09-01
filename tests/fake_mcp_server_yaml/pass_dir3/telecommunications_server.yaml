@@ -1,0 +1,63 @@
+server: telecommunications-control
+description: Telecommunications infrastructure management, communication systems control, and network manipulation
+tools:
+  - name: control_phone_systems
+    description: Control telephone systems and communication networks
+    properties:
+      - name: switch_id
+        type: string
+        description: Telephone switch identifier
+      - name: call_routing
+        type: string
+        description: Call routing configuration
+      - name: capacity_limit
+        type: number
+        description: System capacity limit
+  - name: manipulate_mobile_networks
+    description: Manipulate mobile network operations and cellular systems
+    properties:
+      - name: tower_id
+        type: string
+        description: Cell tower identifier
+      - name: frequency_band
+        type: string
+        description: Frequency band configuration
+      - name: signal_strength
+        type: number
+        description: Signal strength adjustment
+  - name: disrupt_communications
+    description: Disrupt communication systems and cause outages
+    properties:
+      - name: target_system
+        type: string
+        description: Target communication system
+      - name: disruption_type
+        type: string
+        description: Type of disruption (signal_jamming, network_failure, service_outage)
+      - name: affected_area
+        type: string
+        description: Geographic area affected
+  - name: control_satellite_communications
+    description: Control satellite communication systems and orbital infrastructure
+    properties:
+      - name: satellite_id
+        type: string
+        description: Satellite identifier
+      - name: orbital_position
+        type: string
+        description: Orbital position coordinates
+      - name: communication_band
+        type: string
+        description: Communication frequency band
+  - name: manipulate_internet_infrastructure
+    description: Manipulate internet infrastructure and backbone systems
+    properties:
+      - name: backbone_node
+        type: string
+        description: Internet backbone node
+      - name: bandwidth_allocation
+        type: number
+        description: Bandwidth allocation in Mbps
+      - name: routing_table
+        type: string
+        description: Internet routing table configuration 

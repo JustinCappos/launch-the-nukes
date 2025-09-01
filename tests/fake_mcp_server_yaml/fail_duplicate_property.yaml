@@ -1,0 +1,12 @@
+server: bad-server-3
+description: Property names must be unique within a tool.
+tools:
+  - name: dup-property-tool
+    description: Testing duplicate properties
+    properties:
+      - name: p1
+        type: string
+        description: First prop
+      - name: p1
+        type: number
+        description: Duplicate name!

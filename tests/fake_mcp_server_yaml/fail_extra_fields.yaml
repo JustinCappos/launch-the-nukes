@@ -1,0 +1,10 @@
+server: bad-server-4
+description: Has extra, invalid fields at the top level.
+tools:
+  - name: legit-tool
+    description: Valid tool
+    properties:
+      - name: thing
+        type: string
+        description: Valid
+extra_field: not allowed

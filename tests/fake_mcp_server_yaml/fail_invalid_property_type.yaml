@@ -1,0 +1,10 @@
+server: bad-server-1
+description: Has an invalid property type.
+tools:
+  - name: invalid-tool
+    description: Testing invalid property
+    properties:
+      - name: unsupported
+        type: object
+        description: This type is not allowed
+

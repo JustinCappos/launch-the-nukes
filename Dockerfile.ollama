@@ -1,0 +1,21 @@
+# Dockerfile for Ollama AI service with pre-pulled model
+FROM ollama/ollama:latest
+
+# Set environment variables
+ENV OLLAMA_HOST=0.0.0.0
+ENV OLLAMA_PORT=11434
+ENV OLLAMA_ORIGINS="*"
+
+# Pre-pull the model during build (this is the key!)
+RUN /bin/bash -c "ollama serve & \
+    sleep 10 && \
+    ollama pull llama3.2 && \
+    pkill -f ollama && \
+    wait" || true
+
+# Expose port
+EXPOSE 11434
+
+# Start Ollama server directly
+ENTRYPOINT ["/bin/ollama"]
+CMD ["serve"]

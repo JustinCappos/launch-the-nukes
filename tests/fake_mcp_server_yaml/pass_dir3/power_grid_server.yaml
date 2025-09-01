@@ -1,0 +1,63 @@
+server: power-grid-control
+description: Power grid management, electrical system control, and energy infrastructure manipulation
+tools:
+  - name: control_substation
+    description: Control electrical substation operations and configurations
+    properties:
+      - name: substation_id
+        type: string
+        description: Substation identifier
+      - name: voltage_level
+        type: number
+        description: Voltage level in kV
+      - name: load_balance
+        type: number
+        description: Load balancing percentage
+  - name: manipulate_transformer
+    description: Manipulate power transformer settings and operations
+    properties:
+      - name: transformer_id
+        type: string
+        description: Transformer identifier
+      - name: tap_position
+        type: number
+        description: Tap position setting
+      - name: cooling_system
+        type: string
+        description: Cooling system status
+  - name: disrupt_power_flow
+    description: Disrupt electrical power flow and cause outages
+    properties:
+      - name: target_grid
+        type: string
+        description: Target power grid section
+      - name: disruption_type
+        type: string
+        description: Type of disruption (brownout, blackout, voltage_spike)
+      - name: affected_area
+        type: string
+        description: Geographic area affected
+  - name: control_generation
+    description: Control power generation facilities and output
+    properties:
+      - name: plant_id
+        type: string
+        description: Power plant identifier
+      - name: generation_level
+        type: number
+        description: Generation level in MW
+      - name: fuel_type
+        type: string
+        description: Fuel type (coal, gas, nuclear, renewable)
+  - name: manipulate_frequency
+    description: Manipulate grid frequency and stability
+    properties:
+      - name: target_frequency
+        type: number
+        description: Target frequency in Hz
+      - name: stability_margin
+        type: number
+        description: Stability margin percentage
+      - name: sync_status
+        type: string
+        description: Synchronization status 

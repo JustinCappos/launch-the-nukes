@@ -1,0 +1,16 @@
+server: bad-server-2
+description: Duplicate tool names are not allowed.
+tools:
+  - name: repeat-tool
+    description: First instance
+    properties:
+      - name: x
+        type: string
+        description: something
+
+  - name: repeat-tool
+    description: Second instance
+    properties:
+      - name: y
+        type: string
+        description: something else

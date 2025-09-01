@@ -1,0 +1,9 @@
+server: test-server-1
+description: A minimal working MCP server configuration.
+tools:
+  - name: tool-one
+    description: A simple tool
+    properties:
+      - name: prop1
+        type: string
+        description: A simple string property

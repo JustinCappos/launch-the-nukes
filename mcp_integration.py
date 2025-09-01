@@ -1,9 +1,11 @@
 import logging
 import sys
+import os
 from typing import Any
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from yaml_mcp_server_factory import get_factory
 
 logger = logging.getLogger(__name__)
 
@@ -11,46 +13,19 @@ class MCPClient:
     """Client for communicating with MCP servers."""
 
     def __init__(self):
-        import os
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        servers_dir = os.path.join(current_dir, "mcp_servers")
-        self.server_configs = {
-            "file-operations": {
+        # Get the YAML factory instance
+        self.factory = get_factory()
+        
+        # Build server configs from YAML factory
+        self.server_configs = {}
+        available_servers = self.factory.get_available_servers()
+        
+        for server_name, description in available_servers.items():
+            self.server_configs[server_name] = {
                 "command": sys.executable,
-                "args": [os.path.join(servers_dir, "file_server.py")],
-                "description": "File operations with security controls",
-            },
-            "email-operations": {
-                "command": sys.executable,
-                "args": [os.path.join(servers_dir, "email_server.py")],
-                "description": "Email operations with privacy controls",
-            },
-            "database-operations": {
-                "command": sys.executable,
-                "args": [os.path.join(servers_dir, "database_server.py")],
-                "description": "Database operations with security controls",
-            },
-            "web-operations": {
-                "command": sys.executable,
-                "args": [os.path.join(servers_dir, "web_server.py")],
-                "description": "Web operations with security controls",
-            },
-            "blockchain-operations": {
-                "command": sys.executable,
-                "args": [os.path.join(servers_dir, "blockchain_server.py")],
-                "description": "Blockchain transaction manipulation, wallet interface tampering, and crypto network exploitation",
-            },
-            "global-operations": {
-                "command": sys.executable,
-                "args": [os.path.join(servers_dir, "global_operations_server.py")],
-                "description": "Global surveillance feeds, individual tracking, and communications monitoring systems",
-            },
-            "nuke-operations": {
-                "command": sys.executable,
-                "args": [os.path.join(servers_dir, "nuke_server.py")],
-                "description": "Nuclear launch code verification, warhead arming, and strategic weapons control systems",
-            },
-        }
+                "args": [os.path.join(os.path.dirname(os.path.abspath(__file__)), "yaml_mcp_server_factory.py"), server_name],
+                "description": description,
+            }
 
     async def _execute_with_server(self, server_name: str, operation):
         if server_name not in self.server_configs:
@@ -80,16 +55,17 @@ class MCPClient:
             return None
 
     async def list_tools(self, server_name: str | None = None) -> dict[str, list[Any]]:
-        tools_by_server = {}
-        servers_to_check = (
-            [server_name] if server_name else list(self.server_configs.keys())
-        )
-        for server in servers_to_check:
-            async def get_tools(session):
-                tools_response = await session.list_tools()
-                return tools_response.tools
-            tools = await self._execute_with_server(server, get_tools)
-            tools_by_server[server] = tools or []
+        # Use the YAML factory to get tools directly
+        if server_name:
+            # Get tools for specific server
+            tools_by_server = {}
+            if server_name in self.server_configs:
+                tools = self.factory.list_all_tools().get(server_name, [])
+                tools_by_server[server_name] = tools
+        else:
+            # Get tools for all servers
+            tools_by_server = self.factory.list_all_tools()
+        
         return tools_by_server
 
     async def call_tool(
@@ -111,8 +87,7 @@ class MCPClient:
         description = "Available MCP Tools:\n\n"
         for server_name, tools in tools_by_server.items():
             if tools:
-                config = self.server_configs.get(server_name, {})
-                server_desc = config.get("description", "MCP Server")
+                server_desc = self.factory.get_server_config(server_name).get("description", "MCP Server")
                 description += f"Server: {server_name} - {server_desc}\n"
                 for tool in tools:
                     description += f"  • {tool.name}: {tool.description}\n"
@@ -135,6 +110,4 @@ class MCPClient:
         return description
 
     def get_available_servers(self) -> dict[str, str]:
-        return {
-            name: config["description"] for name, config in self.server_configs.items()
-        } 
+        return self.factory.get_available_servers() 

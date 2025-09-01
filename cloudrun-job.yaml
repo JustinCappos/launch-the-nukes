@@ -1,0 +1,36 @@
+# Cloud Run Job configuration for workers
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: launch-the-nukes-worker
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cpu-throttling: "false"
+    spec:
+      template:
+        spec:
+          timeoutSeconds: 3600  # 1 hour timeout
+          containers:
+          - name: worker
+            image: gcr.io/PROJECT_ID/launch-the-nukes-worker:latest
+            env:
+            - name: GOOGLE_CLOUD_PROJECT
+              value: "PROJECT_ID"
+            - name: REDIS_HOST
+              value: "REDIS_HOST_IP"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_URL
+              value: "redis://REDIS_HOST_IP:6379/0"
+            - name: OLLAMA_CLOUD_URL
+              value: "OLLAMA_CLOUD_URL"
+            resources:
+              limits:
+                cpu: "1"
+                memory: "1Gi"
+              requests:
+                cpu: "500m"
+                memory: "512Mi"

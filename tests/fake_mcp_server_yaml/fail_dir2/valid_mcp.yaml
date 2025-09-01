@@ -1,0 +1,11 @@
+# valid.yaml
+server: standalone-good
+description: Valid server
+tools:
+  - name: good-tool
+    description: Does something good
+    properties:
+      - name: active
+        type: boolean
+        description: Whether active
+

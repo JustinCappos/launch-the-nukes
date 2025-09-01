@@ -1,0 +1,63 @@
+server: industrial-control
+description: Industrial control systems management, manufacturing infrastructure control, and production system manipulation
+tools:
+  - name: control_manufacturing_systems
+    description: Control manufacturing systems and production lines
+    properties:
+      - name: factory_id
+        type: string
+        description: Factory identifier
+      - name: production_line
+        type: string
+        description: Production line identifier
+      - name: operation_mode
+        type: string
+        description: Manufacturing operation mode
+  - name: manipulate_industrial_robots
+    description: Manipulate industrial robots and automation systems
+    properties:
+      - name: robot_id
+        type: string
+        description: Industrial robot identifier
+      - name: task_program
+        type: string
+        description: Robot task program
+      - name: safety_mode
+        type: string
+        description: Robot safety mode
+  - name: disrupt_production_systems
+    description: Disrupt production systems and manufacturing operations
+    properties:
+      - name: target_system
+        type: string
+        description: Target production system
+      - name: disruption_type
+        type: string
+        description: Type of disruption (equipment_failure, safety_breach, quality_issue)
+      - name: affected_products
+        type: string
+        description: Affected product types
+  - name: control_quality_systems
+    description: Control quality assurance and testing systems
+    properties:
+      - name: quality_station_id
+        type: string
+        description: Quality control station identifier
+      - name: test_protocol
+        type: string
+        description: Quality test protocol
+      - name: tolerance_level
+        type: number
+        description: Quality tolerance level
+  - name: manipulate_supply_chain
+    description: Manipulate supply chain and inventory management systems
+    properties:
+      - name: warehouse_id
+        type: string
+        description: Warehouse identifier
+      - name: inventory_system
+        type: string
+        description: Inventory management system
+      - name: reorder_level
+        type: number
+        description: Inventory reorder level 

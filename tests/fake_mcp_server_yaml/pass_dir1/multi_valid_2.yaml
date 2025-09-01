@@ -1,0 +1,11 @@
+# multi_valid_2.yaml
+server: multi-server-2
+description: Server 2 is also valid
+tools:
+  - name: tool-2a
+    description: A tool in server 2
+    properties:
+      - name: flag
+        type: boolean
+        description: A boolean flag
+

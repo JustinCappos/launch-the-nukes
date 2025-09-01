@@ -218,3 +218,18 @@ __marimo__/
 ehthumbs.db
 Thumbs.db
 
+# Deployment temporary files
+*-configured.yaml
+*-build.yaml
+cloudrun-*-configured.yaml
+ollama-build.yaml
+worker-build.yaml
+
+# Debug and diagnostic files
+*diagnostic*.py
+*debug*.py
+*test_*.py
+*fix*.sh
+*temp*.yaml
+*tmp*.yaml
+

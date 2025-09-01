@@ -1,0 +1,10 @@
+# invalid_missing_field.yaml
+description: Missing server field
+tools:
+  - name: broken-tool
+    description: Incomplete
+    properties:
+      - name: x
+        type: string
+        description: A string
+

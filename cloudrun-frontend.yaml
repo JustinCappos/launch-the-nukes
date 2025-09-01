@@ -1,0 +1,43 @@
+# Cloud Run service configuration
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: launch-the-nukes-frontend
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/vpc-access-connector: launch-nukes-connector
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+        autoscaling.knative.dev/maxScale: "100"
+        autoscaling.knative.dev/minScale: "0"
+        deploy.nonce/timestamp: "DEPLOY_NONCE"
+    spec:
+      containerConcurrency: 1000
+      timeoutSeconds: 300
+      containers:
+      - image: gcr.io/PROJECT_ID/launch-the-nukes-frontend:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: GOOGLE_CLOUD_PROJECT
+          value: "PROJECT_ID"
+        - name: REDIS_HOST
+          value: "REDIS_HOST_IP"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: NUM_WORKERS
+          value: "0"
+        - name: DEBUG
+          value: "false"
+        resources:
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+          requests:
+            cpu: "1"
+            memory: "512Mi"

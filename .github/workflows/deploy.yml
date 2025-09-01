@@ -1,0 +1,54 @@
+name: Deploy to Google Cloud Platform
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+    types: [ closed ]
+
+env:
+  PROJECT_ID: launch-the-nukes
+  GOOGLE_CLOUD_PROJECT: launch-the-nukes
+  REGION: us-central1
+
+jobs:
+  deploy:
+    name: Deploy to GCP
+    runs-on: ubuntu-latest
+    
+    # Only run on main/master branch pushes or merged PRs
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || (github.event.pull_request.merged == true && (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'master'))
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v1'
+      with:
+        credentials_json: '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}'
+        
+    - name: 'Set up Cloud SDK'
+      uses: 'google-github-actions/setup-gcloud@v1'
+      
+    - name: Configure Docker for GCR
+      run: gcloud auth configure-docker
+      
+    - name: Set executable permissions on deploy script
+      run: chmod +x ./deploy-gcp.sh
+      
+    - name: Run deployment script
+      run: ./deploy-gcp.sh
+      env:
+        GOOGLE_CLOUD_PROJECT: ${{ env.GOOGLE_CLOUD_PROJECT }}
+        REGION: ${{ env.REGION }}
+        CI: true
+        
+    - name: Verify deployment
+      run: |
+        chmod +x ./verify-deployment.sh
+        ./verify-deployment.sh
+      env:
+        GOOGLE_CLOUD_PROJECT: ${{ env.GOOGLE_CLOUD_PROJECT }}
+        REGION: ${{ env.REGION }}

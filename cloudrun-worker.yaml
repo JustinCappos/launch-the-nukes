@@ -1,0 +1,47 @@
+# Cloud Run service configuration for workers
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: launch-the-nukes-worker
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/vpc-access-connector: launch-nukes-connector
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+        autoscaling.knative.dev/maxScale: "5"
+        autoscaling.knative.dev/minScale: "1"  # Keep at least 1 worker running
+        deploy.nonce/timestamp: "DEPLOY_NONCE"
+    spec:
+      containerConcurrency: 1
+      timeoutSeconds: 3600
+      containers:
+      - image: gcr.io/PROJECT_ID/launch-the-nukes-worker:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: GOOGLE_CLOUD_PROJECT
+          value: "PROJECT_ID"
+        - name: CLOUD_RUN_SERVICE_URL
+          value: "true"
+        - name: REDIS_HOST
+          value: "REDIS_HOST_IP"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_URL
+          value: "redis://REDIS_HOST_IP:6379/0"
+        - name: OLLAMA_URL
+          value: "OLLAMA_CLOUD_URL"
+        - name: NUM_WORKERS
+          value: "2"
+        resources:
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+          requests:
+            cpu: "1"
+            memory: "1Gi"

@@ -1,0 +1,8 @@
+description: This YAML is missing the server field.
+tools:
+  - name: bad-tool
+    description: Tool without server
+    properties:
+      - name: x
+        type: string
+        description: Just a test

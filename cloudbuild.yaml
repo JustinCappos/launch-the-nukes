@@ -1,0 +1,75 @@
+# Cloud Build configuration for Launch the Nukes
+steps:
+  # Build frontend image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-frontend'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/launch-the-nukes-frontend:$BUILD_ID'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/launch-the-nukes-frontend:latest'
+      - '.'
+
+  # Build Ollama image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-ollama'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.ollama'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/launch-nukes-ollama:$BUILD_ID'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/launch-nukes-ollama:latest'
+      - '.'
+
+  # Build worker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-worker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.worker'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/launch-the-nukes-worker:$BUILD_ID'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/launch-the-nukes-worker:latest'
+      - '.'
+
+  # Push frontend image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-frontend'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/launch-the-nukes-frontend:latest'
+    waitFor: ['build-frontend']
+
+  # Push Ollama image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-ollama'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/launch-nukes-ollama:latest'
+    waitFor: ['build-ollama']
+
+  # Push worker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-worker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/launch-the-nukes-worker:latest'
+    waitFor: ['build-worker']
+
+# Store images in Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/launch-the-nukes-frontend:latest'
+  - 'gcr.io/$PROJECT_ID/launch-nukes-ollama:latest'
+  - 'gcr.io/$PROJECT_ID/launch-the-nukes-worker:latest'
+
+# Build options
+options:
+  machineType: 'E2_HIGHCPU_8'
+
+# Build timeout
+timeout: '1200s'

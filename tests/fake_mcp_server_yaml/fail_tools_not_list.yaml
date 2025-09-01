@@ -1,0 +1,6 @@
+server: bad-server-5
+description: The 'tools' field is a dict instead of a list.
+tools:
+  name: single-tool
+  description: not-a-list
+  properties: []

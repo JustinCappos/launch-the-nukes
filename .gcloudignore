@@ -1,0 +1,61 @@
+# Ignore development and test files
+.git/
+.gitignore
+.env*
+*.local
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Local development files
+redis.log
+*.log
+*.pid
+
+# Test files and directories
+tests/
+test_*
+*_test.py
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Deployment scripts (not needed in container)
+deploy.sh
+setup-local.sh
+*.yaml
+!cloudrun-*.yaml
+!mcp_servers/*.yaml
+
+# Temporary files
+cloudrun-*-configured.yaml

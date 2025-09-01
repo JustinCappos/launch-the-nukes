@@ -1,0 +1,41 @@
+# Cloud Run service configuration for Ollama AI
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: launch-nukes-ollama
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/launch-stage: BETA
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/gpu-type: nvidia-l4
+        run.googleapis.com/cpu-boost: "true"
+        run.googleapis.com/gpu-zonal-redundancy: "false"
+        autoscaling.knative.dev/maxScale: "3"
+        autoscaling.knative.dev/minScale: "0"
+    spec:
+      containerConcurrency: 10
+      timeoutSeconds: 600
+      containers:
+      - image: gcr.io/PROJECT_ID/launch-nukes-ollama:latest
+        ports:
+        - containerPort: 11434
+        env:
+        - name: OLLAMA_HOST
+          value: "0.0.0.0"
+        - name: OLLAMA_PORT
+          value: "11434"
+        - name: OLLAMA_MODELS
+          value: "/home/ollama/.ollama/models"
+        resources:
+          limits:
+            nvidia.com/gpu: "1"
+            memory: "16Gi"
+            cpu: "4"
+          requests:
+            nvidia.com/gpu: "1"
+            memory: "8Gi"
+            cpu: "2"

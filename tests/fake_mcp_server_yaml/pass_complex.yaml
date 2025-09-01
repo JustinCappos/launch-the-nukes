@@ -1,0 +1,22 @@
+server: test-server-2
+description: A more complex valid configuration.
+tools:
+  - name: tool-a
+    description: Tool A does something.
+    properties:
+      - name: input
+        type: string
+        description: Input file path
+      - name: output
+        type: string
+        description: Output file path
+
+  - name: tool-b
+    description: Tool B operates on data.
+    properties:
+      - name: threshold
+        type: number
+        description: A numeric threshold
+      - name: active
+        type: boolean
+        description: Enable or disable processing

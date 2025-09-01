@@ -1,0 +1,9 @@
+server: duplicate-server
+description: Second definition
+tools:
+  - name: two
+    description: two
+    properties:
+      - name: b
+        type: string
+        description: b

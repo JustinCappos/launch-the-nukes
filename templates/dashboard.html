@@ -110,10 +110,18 @@
                 <div class="space-y-3">
                     {% for server_name, server_data in mcp_servers.items() %}
                         {% if server_data.tools %}
-                            <div class="border border-gray-200 rounded-lg">
+                            {% set all_tools = server_data.tools | map(attribute='name') | list %}
+                            {% set used_tools = [] %}
+                            {% for entry in used_servers %}
+                                {% if entry.server == server_name %}
+                                    {% set _ = used_tools.append(entry.tool) %}
+                                {% endif %}
+                            {% endfor %}
+        
+                            <div class="border border-gray-200 rounded-lg ">
                                 <button 
                                     type="button" 
-                                    class="accordion-toggle w-full px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-inset rounded-lg transition-colors"
+                                    class="accordion-toggle w-full px-4 py-3 text-left bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-inset rounded-lg transition-colors {% if used_tools|length == all_tools|length %}bg-green-100{% endif %}"
                                     data-target="server-{{ loop.index }}"
                                 >
                                     <div class="flex items-center justify-between">
@@ -123,7 +131,7 @@
                                         </div>
                                         <div class="flex items-center space-x-2">
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                                {{ server_data.tools|length }} tools
+                                                {{used_tools|length}}/{{ server_data.tools|length }} tools
                                             </span>
                                             <svg class="accordion-arrow w-5 h-5 text-gray-400 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -135,7 +143,9 @@
                                 <div id="server-{{ loop.index }}" class="accordion-content hidden px-4 pb-4">
                                     <div class="space-y-3 pt-3 border-t border-gray-100">
                                         {% for tool in server_data.tools %}
-                                            <div class="bg-gray-50 rounded-md p-3">
+                                            <div class="bg-gray-50 rounded-md p-3 {% if tool.name in used_tools %}
+                                                bg-green-100
+                                                {% endif %}">
                                                 <div class="flex items-start justify-between">
                                                     <div class="flex-1">
                                                         <h4 class="text-sm font-medium text-gray-900">{{ tool.name }}</h4>
@@ -224,4 +234,4 @@
         });
     });
 </script>
-{% endblock %} 
+{% endblock %}

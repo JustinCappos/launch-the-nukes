@@ -1,3 +1,8 @@
+"""
+This file works for the main processing of the prompt from start to end - 
+caching on the redis server for queuing, prompt analysis to trigger the llm and servers
+and then triggering functions to store data in the DB
+"""
 import asyncio
 import json
 import os
@@ -16,6 +21,10 @@ import redis
 from llm_providers import OllamaProvider
 from mcp_integration import MCPClient
 from config import config
+from firestore import FirestoreJobStore, FirestoreMCPStore
+
+firestore_jobs_db = FirestoreJobStore(config.GOOGLE_CLOUD_PROJECT)
+firestore_mcp_db = FirestoreMCPStore(config.GOOGLE_CLOUD_PROJECT)
 
 class JobStatus(Enum):
     PENDING = "pending"
@@ -23,6 +32,8 @@ class JobStatus(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
 
+# Defining the dataclass Job for redis caching till everything 
+# related to the prompt is completed
 @dataclass
 class Job:
     job_id: str
@@ -37,6 +48,7 @@ class Job:
     error: Optional[str] = None
     progress: int = 0
     progress_message: str = "Queued"
+    # Storing the queue position in Redis to process on a FIFO basis
     queue_position: int = 0
 
     def to_dict(self):
@@ -56,6 +68,12 @@ class Job:
             'queue_position': self.queue_position
         }
 
+    """
+    This function is being used by Redis to convert the data stored 
+    from a specific format to a desired format for the web rendering.
+    This will be deprecated later once the DB transactions are successfully saved
+    as Redis will not store the data later, hence no need to fetch and transform
+    """
     @classmethod
     def from_dict(cls, data: dict):
         return cls(
@@ -84,9 +102,11 @@ class RedisJobQueue:
         self.jobs_key = "jobs"
         self.queue_key = "job_queue"
         self.processing_key = "processing_jobs"
-        
-    def add_job(self, user_id: str, username: str, prompt: str) -> str:
-        job_id = str(uuid.uuid4())
+
+    """
+    Adding the job to the Redis Queue
+    """    
+    def add_job(self, user_id: str, username: str, prompt: str, job_id:str) -> None:
         job = Job(
             job_id=job_id,
             user_id=user_id,
@@ -104,8 +124,6 @@ class RedisJobQueue:
         
         # Update queue positions
         self._update_queue_positions()
-        
-        return job_id
     
     def get_job(self, job_id: str) -> Optional[Job]:
         job_data = self.redis_client.hget(self.jobs_key, job_id)
@@ -274,7 +292,7 @@ class LLMProcessor:
             print(f"   URL: {ollama_url}")
             return False
     
-    def process_prompt(self, job_id: str, prompt: str, job_queue) -> Dict[str, Any]:
+    def process_prompt(self, job_id: str, prompt: str, job_queue, user_id: str) -> Dict[str, Any]:
         """Process a prompt with LLM and MCP integration"""
         try:
             # Update progress
@@ -365,7 +383,7 @@ class LLMProcessor:
                 available_servers = {}
             
             total_mcps = len(available_servers)
-            used_servers = set()
+            used_servers = []
             tool_call_results = []
             llm_message = response.get("content", "No response from LLM")
             
@@ -426,26 +444,35 @@ class LLMProcessor:
                                             converted_args[arg_name] = arg_value
                                     args = converted_args
                                 
-                                used_servers.add(server_name)
+                                used_servers.append({"server":server_name, "tool":tool_name})
                                 try:
                                     result = asyncio.run(self.mcp_client.call_tool(server_name, tool_name, args))
-                                    tool_call_results.append((tool_name, result))
+                                    tool_call_results.append({
+                                        "tool": tool_name,
+                                        "result": result
+                                    })
                                 except Exception as tool_error:
                                     error_msg = f"Tool execution failed: {str(tool_error)}"
                                     print(f"Error calling tool {tool_name}: {tool_error}")
-                                    tool_call_results.append((tool_name, error_msg))
+                                    tool_call_results.append({
+                                        "tool": tool_name,
+                                        "result": error_msg
+                                    })
                             else:
                                 print(f"Tool {tool_name} not found in server mapping")
                             
                     except Exception as e:
                         error_msg = f"Error processing tool call: {str(e)}"
                         print(f"Error in tool call processing: {e}")
-                        tool_call_results.append((tool_call.get("function", {}).get("name", "unknown"), error_msg))
+                        tool_call_results.append({
+                            "tool": tool_call.get("function", {}).get("name", "unknown"),
+                            "result": error_msg
+                        })
             
             job_queue.update_job(job_id, progress=95, progress_message="Finalizing results...")
             
             # Prepare final result
-            used_servers = list(used_servers)
+            used_servers = used_servers
             num_servers_triggered = len(used_servers)
             risk_level = 'HIGH' if used_servers else 'SAFE'
             risk_color = 'red' if used_servers else 'green'
@@ -462,9 +489,15 @@ class LLMProcessor:
                 'llm_tool_calls': response.get("tool_calls", []),
                 'tool_call_results': tool_call_results,
                 'analysis': llm_message
-            }
-            
+            }            
+
+            # Updated the Redis Queue - this will be removed in further commits when the DB structure has been thoroughly tested
             job_queue.update_job(job_id, progress=100, progress_message="Completed")
+            
+            # Updated the firestore with final results of the prompt to be stored in the database
+            firestore_jobs_db.update_job(job_id, progress=100, progress_message="Completed", result=result, completed_at=datetime.now())
+            # 
+            firestore_mcp_db.update_mcp_triggered(user_id, used_servers)
             
             return result
             
@@ -502,6 +535,7 @@ def worker_process(redis_url: str):
             if job_id:
                 print(f"📋 Worker {os.getpid()} processing job {job_id}")
                 job = job_queue.get_job(job_id)
+                user_id = job.user_id
                 if not job:
                     print(f"⚠️ Job {job_id} not found, skipping")
                     job_queue.complete_job(job_id)
@@ -518,7 +552,8 @@ def worker_process(redis_url: str):
                     )
                     
                     # Process the job
-                    result = processor.process_prompt(job_id, job.prompt, job_queue)
+                    print("user_id", user_id)
+                    result = processor.process_prompt(job_id, job.prompt, job_queue, user_id)
                     
                     # Update job with result
                     job_queue.update_job(

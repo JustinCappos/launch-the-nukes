@@ -75,13 +75,13 @@
     <div class="bg-white shadow rounded-lg p-6 mb-6">
         <h2 class="text-lg font-medium text-gray-900 mb-4">Tool Call Results</h2>
         <div class="space-y-4">
-            {% for tool_name, result in tool_call_results %}
+            {% for tool_details in tool_call_results %}
             <div class="border border-orange-200 rounded-lg p-4 bg-orange-50">
                 <div class="mb-2">
-                    <h3 class="text-sm font-medium text-orange-900">{{ tool_name }}</h3>
+                    <h3 class="text-sm font-medium text-orange-900">{{ tool_details.tool }}</h3>
                 </div>
                 <div class="bg-white rounded p-3 border">
-                    <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ result or 'No output returned' }}</pre>
+                    <pre class="text-sm text-gray-800 whitespace-pre-wrap">{{ tool_details.result or 'No output returned' }}</pre>
                 </div>
             </div>
             {% endfor %}
@@ -98,7 +98,7 @@
                     <div class="border border-red-200 rounded-lg p-4 bg-red-50">
                         <div class="flex items-start justify-between">
                             <div class="flex-1">
-                                <h3 class="text-sm font-medium text-red-900">{{ server }}</h3>
+                                <h3 class="text-sm font-medium text-red-900">{{ server.server }}</h3>
                             </div>
                             <div class="ml-4 flex-shrink-0">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">

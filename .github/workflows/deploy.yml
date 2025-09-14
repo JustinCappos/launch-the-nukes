@@ -12,6 +12,7 @@ env:
   GOOGLE_CLOUD_PROJECT: launch-the-nukes
   REGION: us-central1
 
+# To make sure that when one action runs, the other does not get executed parallely
 concurrency:
   group: deploy-${{ github.repository }}
   cancel-in-progress: false

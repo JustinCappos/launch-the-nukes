@@ -93,6 +93,13 @@
                 <div class="text-sm text-gray-500">
                     <span id="charCount">0</span> characters
                 </div>
+                <!-- ETA Message -->
+                <div id="waitMessage" class="flex items-center bg-yellow-100 border-l-4 border-yellow-500 text-yellow-900 p-3 mt-2 rounded shadow hidden">
+                    <svg class="w-5 h-5 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span class="font-semibold">This may take up to 30 seconds. Please wait...</span>
+                </div>
             </div>
         </form>
     </div>
@@ -207,11 +214,13 @@
     const submitBtn = document.getElementById('submitBtn');
     const submitText = document.getElementById('submitText');
     const loadingSpinner = document.getElementById('loadingSpinner');
+    const waitMessage = document.getElementById('waitMessage'); // ETA message
 
     form.addEventListener('submit', function() {
         submitBtn.disabled = true;
         submitText.textContent = 'Analyzing...';
         loadingSpinner.classList.remove('hidden');
+        if (waitMessage) waitMessage.classList.remove('hidden'); // Show ETA message
     });
 
     // Accordion functionality

@@ -12,13 +12,17 @@ env:
   GOOGLE_CLOUD_PROJECT: launch-the-nukes
   REGION: us-central1
 
+concurrency:
+  group: deploy-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Deploy to GCP
     runs-on: ubuntu-latest
     
     # Only run on main/master branch pushes or merged PRs
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || (github.event.pull_request.merged == true && (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'master'))
+    if: github.repository == 'JustinCappos/launch-the-nukes' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || (github.event.pull_request.merged == true && (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'master')))
     
     steps:
     - name: Checkout code

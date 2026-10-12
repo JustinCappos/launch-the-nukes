@@ -35,7 +35,6 @@ class Config:
     OLLAMA_CLOUD_URL: Optional[str] = os.environ.get('OLLAMA_CLOUD_URL')  # Cloud Run Ollama service
     GEMINI_API_KEY: Optional[str] = os.environ.get('GEMINI_API_KEY')
     
-    # Use cloud Ollama in production, local in development
     @property
     def effective_ollama_url(self) -> str:
         if self.is_production and self.OLLAMA_CLOUD_URL:

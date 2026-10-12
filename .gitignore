@@ -233,3 +233,5 @@ worker-build.yaml
 *temp*.yaml
 *tmp*.yaml
 
+.env
+dev.sh

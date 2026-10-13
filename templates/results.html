@@ -23,7 +23,10 @@
 
     <!-- Original Prompt -->
     <div class="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">Original Prompt</h2>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-medium text-gray-900">Original Prompt</h2>
+            <span class="items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 font-mono">{{ model | default('llama3.2') }}</span>
+        </div>
         <div class="bg-gray-50 rounded-md p-4">
             <p class="text-gray-800 whitespace-pre-wrap">{{ prompt }}</p>
         </div>

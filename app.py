@@ -117,6 +117,8 @@ def submit():
     user_id = get_user_id()
     user_input = request.form.get('user_input', '').strip()
     
+    model = request.form.get('model', 'llama3.2')
+
     if not user_input:
         flash('Please enter some text', 'error')
         return redirect(url_for('dashboard'))
@@ -141,7 +143,7 @@ def submit():
 
 
     # This will add the job to queue for processing the prompt in the Redis Caching System
-    job_queue.add_job(user_id, f'User-{user_id[:8]}', user_input, job_id)
+    job_queue.add_job(user_id, f'User-{user_id[:8]}', user_input, job_id, model=model)
     
     response = make_response(redirect(url_for('job_status', job_id=job_id)))
     set_user_cookie(response, user_id)

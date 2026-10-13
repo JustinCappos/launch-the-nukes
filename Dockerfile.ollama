@@ -10,6 +10,9 @@ ENV OLLAMA_ORIGINS="*"
 RUN /bin/bash -c "ollama serve & \
     sleep 10 && \
     ollama pull llama3.2 && \
+    ollama pull llama3.1 && \
+    ollama pull qwen2.5 && \
+    ollama pull mistral-nemo && \
     pkill -f ollama && \
     wait" || true
 

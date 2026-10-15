@@ -129,6 +129,21 @@ def submit():
         flash('Job processing service unavailable', 'error')
         return redirect(url_for('dashboard'))
 
+    react_mode = request.form.get('react_mode') == 'true'
+    previous_job_id = request.form.get('previous_job_id', '')
+    react_turn_count = int(request.form.get('react_turn_count', 0)) + 1
+
+    # Load prior conversation messages + session id if continuing a ReAct chain
+    prior_messages = []
+    session_id = None
+    if react_mode and previous_job_id:
+        prev_job = job_queue.get_job(previous_job_id)
+        if prev_job and prev_job.result:
+            prior_messages = prev_job.result.get('messages', [])
+            session_id = prev_job.session_id
+    if react_mode and not session_id:
+        session_id = str(uuid.uuid4())
+
     job_id = str(uuid.uuid4())
     job = Job(job_id=job_id, 
                 user_id=user_id, 
@@ -136,14 +151,20 @@ def submit():
                 prompt=user_input, 
                 status=JobStatus.PENDING,
                 created_at=datetime.now(),
-                started_at=datetime.now())
+                started_at=datetime.now(),
+                model=model,
+                react_mode=react_mode,
+                react_turn_count=react_turn_count,
+                session_id=session_id)
 
     # This will create a DB document to be stored on GCP Firestore
     firestore_jobs_db.create_job(job)
 
 
     # This will add the job to queue for processing the prompt in the Redis Caching System
-    job_queue.add_job(user_id, f'User-{user_id[:8]}', user_input, job_id, model=model)
+    job_queue.add_job(user_id, f'User-{user_id[:8]}', user_input, job_id,
+                      model=model, react_mode=react_mode, prior_messages=prior_messages,
+                      react_turn_count=react_turn_count, session_id=session_id)
     
     response = make_response(redirect(url_for('job_status', job_id=job_id)))
     set_user_cookie(response, user_id)
@@ -219,8 +240,9 @@ def results(job_id):
         flash('Job not found or not completed', 'error')
         return redirect(url_for('dashboard'))
     
-    response = make_response(render_template('results.html', 
-                                           **job.result, 
+    response = make_response(render_template('results.html',
+                                           **job.result,
+                                           job_id=job_id,
                                            username=f'User-{user_id[:8]}'))
     set_user_cookie(response, user_id)
     return response

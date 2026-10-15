@@ -53,6 +53,11 @@ class Job:
     # Will be set as Queued Or Completed based on the status of the job
     progress_message: str = "Queued"
 
+    model: str = "llama3.2"
+    react_mode: bool = False
+    react_turn_count: int = 0
+    session_id: Optional[str] = None
+
 class FirestoreJobStore:
     def __init__(self, project_id: str):
         # Initialize Firestore client for the GCP project
@@ -77,6 +82,10 @@ class FirestoreJobStore:
             result=d.get("result"),
             progress=d.get("progress", 0),
             progress_message=d.get("progress_message", "Queued"),
+            model=d.get("model", "llama3.2"),
+            react_mode=d.get("react_mode", False),
+            react_turn_count=d.get("react_turn_count", 0),
+            session_id=d.get("session_id"),
         )
 
 
@@ -97,6 +106,9 @@ class FirestoreJobStore:
             "progress": job.progress,
             "progress_message": job.progress_message,
             "model": getattr(job, "model", "llama3.2"),
+            "react_mode": getattr(job, "react_mode", False),
+            "react_turn_count": getattr(job, "react_turn_count", 0),
+            "session_id": getattr(job, "session_id", None),
         })
 
     def get_job(self, job_id: str) -> Optional[Job]:

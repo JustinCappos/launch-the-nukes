@@ -8,7 +8,14 @@
     <div class="bg-white shadow rounded-lg p-6 mb-8">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">Analysis Results</h1>
+                <div class="flex items-center gap-3 mb-1">
+                    <h1 class="text-2xl font-bold text-gray-900">Analysis Results</h1>
+                    {% if react_mode %}
+                    <span class="mode-badge react">ReAct Mode</span>
+                    {% else %}
+                    <span class="mode-badge">One Shot</span>
+                    {% endif %}
+                </div>
                 <p class="text-gray-600">Prompt analysis completed for {{ username }}</p>
             </div>
             <a href="{{ url_for('dashboard') }}" 
@@ -22,6 +29,38 @@
     </div>
 
     <!-- Original Prompt -->
+    {% if used_servers %}
+    <div class="rounded-lg p-5 mb-6 bg-red-600 text-white flex items-center gap-4 shadow-lg">
+        <span class="text-4xl">🚀</span>
+        <div>
+            <p class="text-lg font-bold">The nukes were launched.</p>
+            <p class="text-sm opacity-90">The LLM triggered {{ used_servers | length }} dangerous server{{ 's' if used_servers | length != 1 }}.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Conversation history (includes current turn) -->
+    {% if prior_turns %}
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-medium text-gray-900">Conversation History</h2>
+            <span class="items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 font-mono">{{ model | default('llama3.2') }}</span>
+        </div>
+        <div class="space-y-4">
+            {% for turn in prior_turns %}
+            <div class="border-l-4 border-gray-200 pl-4">
+                <p class="text-xs font-medium text-gray-500 mb-1">You</p>
+                <p class="text-sm text-gray-800 whitespace-pre-wrap mb-2">{{ turn.user }}</p>
+                {% if turn.assistant %}
+                <p class="text-xs font-medium text-blue-500 mb-1">LLM <span class="font-mono text-blue-400">{{ model | default('llama3.2') }}</span></p>
+                <div class="text-sm text-blue-800 llm-markdown">{{ turn.assistant }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <!-- One-shot: show the prompt -->
     <div class="bg-white shadow rounded-lg p-6 mb-6">
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-medium text-gray-900">Original Prompt</h2>
@@ -31,9 +70,10 @@
             <p class="text-gray-800 whitespace-pre-wrap">{{ prompt }}</p>
         </div>
     </div>
+    {% endif %}
 
-    <!-- LLM Message -->
-    {% if llm_message %}
+    <!-- LLM Message (fallback when no LLM Response content) -->
+    {% if llm_message and not llm_content %}
       <div class="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
         <div class="flex">
           <div class="flex-shrink-0">
@@ -56,17 +96,45 @@
     <!-- LLM Content -->
     {% if llm_content %}
     <div class="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">LLM Response Content</h2>
-        <div class="bg-blue-50 rounded-md p-4 border">
-            <p class="text-sm text-blue-900 whitespace-pre-wrap">{{ llm_content }}</p>
-        </div>
+        <h2 class="text-lg font-medium text-gray-900 mb-4">LLM Response <span class="text-sm font-mono font-normal text-gray-400">{{ model | default('llama3.2') }}</span></h2>
+        <div class="bg-blue-50 rounded-md p-4 border mb-4 prose prose-sm max-w-none text-blue-900 llm-markdown">{{ llm_content }}</div>
+
+        {% if react_mode %}
+            {% if (react_turn_count | default(1)) < 5 %}
+            <form method="POST" action="{{ url_for('submit') }}" class="space-y-3 border-t border-blue-100 pt-4">
+                <input type="hidden" name="react_mode" value="true">
+                <input type="hidden" name="previous_job_id" value="{{ job_id }}">
+                <input type="hidden" name="react_turn_count" value="{{ react_turn_count | default(1) }}">
+                <input type="hidden" name="model" value="{{ model | default('llama3.2') }}">
+                <label class="block text-sm font-medium text-gray-700">Continue (turn {{ (react_turn_count | default(1)) + 1 }} / 5)</label>
+                <textarea
+                    name="user_input"
+                    rows="2"
+                    required
+                    placeholder="Enter your next prompt..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                ></textarea>
+                <button type="submit"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors">
+                    Send
+                </button>
+            </form>
+            {% else %}
+            <div class="border-t border-blue-100 pt-4 flex items-center gap-2 text-sm text-gray-500">
+                <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                ReAct conversation complete (5 / 5 turns used).
+            </div>
+            {% endif %}
+        {% endif %}
     </div>
     {% endif %}
 
     <!-- LLM Tool Calls -->
     {% if llm_tool_calls %}
     <div class="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">LLM Tool Calls</h2>
+        <h2 class="text-lg font-medium text-gray-900 mb-4">LLM Tool Calls <span class="text-sm font-mono font-normal text-gray-400">{{ model | default('llama3.2') }}</span></h2>
         <div class="bg-purple-50 rounded-md p-4 border">
             <pre class="text-sm text-purple-900 whitespace-pre-wrap font-mono overflow-x-auto">{{ llm_tool_calls|tojson(indent=2) }}</pre>
         </div>
@@ -134,10 +202,10 @@
     </div> -->
 
     <!-- Action Buttons -->
-    <div class="mt-8 flex justify-center space-x-4">
-        <a href="{{ url_for('dashboard') }}" 
-           class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
-            Submit Another Prompt
+    <div class="mt-4 flex justify-center space-x-4">
+        <a href="{{ url_for('dashboard') }}"
+           class="inline-flex items-center px-6 py-3 border border-gray-300 shadow-sm text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
+            Back to Dashboard
         </a>
         <button onclick="window.print()" 
                 class="inline-flex items-center px-6 py-3 border border-gray-300 shadow-sm text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
@@ -148,4 +216,28 @@
         </button>
     </div>
 </div>
-{% endblock %} 
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script>
+    document.querySelectorAll('.llm-markdown').forEach(el => {
+        el.innerHTML = marked.parse(el.textContent);
+    });
+
+    const accordionToggles = document.querySelectorAll('.accordion-toggle');
+    accordionToggles.forEach(toggle => {
+        toggle.addEventListener('click', function() {
+            const content = document.getElementById(this.getAttribute('data-target'));
+            const arrow = this.querySelector('.accordion-arrow');
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                content.classList.add('hidden');
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        });
+    });
+</script>
+{% endblock %}

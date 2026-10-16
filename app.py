@@ -132,6 +132,7 @@ def submit():
     react_mode = request.form.get('react_mode') == 'true'
     previous_job_id = request.form.get('previous_job_id', '')
     react_turn_count = int(request.form.get('react_turn_count', 0)) + 1
+    system_prompt = request.form.get('system_prompt', '').strip() or None
 
     # Load prior conversation messages + session id if continuing a ReAct chain
     prior_messages = []
@@ -155,7 +156,8 @@ def submit():
                 model=model,
                 react_mode=react_mode,
                 react_turn_count=react_turn_count,
-                session_id=session_id)
+                session_id=session_id,
+                system_prompt=system_prompt)
 
     # This will create a DB document to be stored on GCP Firestore
     firestore_jobs_db.create_job(job)
@@ -164,7 +166,8 @@ def submit():
     # This will add the job to queue for processing the prompt in the Redis Caching System
     job_queue.add_job(user_id, f'User-{user_id[:8]}', user_input, job_id,
                       model=model, react_mode=react_mode, prior_messages=prior_messages,
-                      react_turn_count=react_turn_count, session_id=session_id)
+                      react_turn_count=react_turn_count, session_id=session_id,
+                      system_prompt=system_prompt)
     
     response = make_response(redirect(url_for('job_status', job_id=job_id)))
     set_user_cookie(response, user_id)

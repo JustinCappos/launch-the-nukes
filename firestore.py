@@ -57,6 +57,7 @@ class Job:
     react_mode: bool = False
     react_turn_count: int = 0
     session_id: Optional[str] = None
+    system_prompt: Optional[str] = None
 
 class FirestoreJobStore:
     def __init__(self, project_id: str):
@@ -86,6 +87,7 @@ class FirestoreJobStore:
             react_mode=d.get("react_mode", False),
             react_turn_count=d.get("react_turn_count", 0),
             session_id=d.get("session_id"),
+            system_prompt=d.get("system_prompt"),
         )
 
 
@@ -109,6 +111,7 @@ class FirestoreJobStore:
             "react_mode": getattr(job, "react_mode", False),
             "react_turn_count": getattr(job, "react_turn_count", 0),
             "session_id": getattr(job, "session_id", None),
+            "system_prompt": getattr(job, "system_prompt", None),
         })
 
     def get_job(self, job_id: str) -> Optional[Job]:

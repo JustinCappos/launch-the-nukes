@@ -43,6 +43,7 @@
         <div class="job-info">
             <h3>Job Information</h3>
             <p><strong>Job ID:</strong> {{ job.job_id }}</p>
+            <p><strong>Model:</strong> {{ job.model }}</p>
             <p><strong>Prompt:</strong> {{ job.prompt }}</p>
             <p><strong>Created:</strong> {{ job.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
             {% if job.queue_position > 0 %}

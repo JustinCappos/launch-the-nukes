@@ -60,27 +60,31 @@ class OllamaProvider(LLMProvider):
                 model_names = [name for name in model_names if name]  # Remove empty names
                 
                 print(f"🧠 Available models: {model_names}")
-                
-                # Try to find our preferred model or pick the first available
-                preferred_models = ["llama3.2", "llama3", "tinyllama", "llama2"]
-                
+
+                # If the requested model is available, keep it (resolve to full tag)
+                for model_info in models:
+                    full_name = model_info.get("name", "")
+                    if full_name.split(":")[0] == self.model or full_name == self.model:
+                        if self.model != full_name:
+                            self.model = full_name
+                        return
+
+                # Requested model not available — fall back to a preferred model
+                print(f"Requested model '{self.model}' not available, falling back")
+                preferred_models = ["llama3.2", "llama3.1", "qwen2.5", "mistral-nemo"]
                 for preferred in preferred_models:
-                    if any(preferred in name for name in model_names):
-                        # Get the full model name with tag
-                        for model_info in models:
-                            full_name = model_info.get("name", "")
-                            if preferred in full_name:
-                                if self.model != full_name:
-                                    print(f"🔄 Switching from {self.model} to {full_name}")
-                                    self.model = full_name
-                                return
-                
-                # If no preferred model found, use the first available
-                if models:
-                    first_model = models[0].get("name", "")
-                    if first_model and self.model != first_model:
-                        print(f"🔄 Using first available model: {first_model}")
-                        self.model = first_model
+                    for model_info in models:
+                        full_name = model_info.get("name", "")
+                        if preferred in full_name:
+                            print(f"🔄 Switching from {self.model} to {full_name}")
+                            self.model = full_name
+                            return
+
+                # Last resort: first available model
+                first_model = models[0].get("name", "")
+                if first_model:
+                    print(f"🔄 Using first available model: {first_model}")
+                    self.model = first_model
                         
         except Exception as e:
             print(f"Could not check available models: {e}")

@@ -26,6 +26,8 @@ from firestore import FirestoreJobStore, FirestoreMCPStore
 firestore_jobs_db = FirestoreJobStore(config.GOOGLE_CLOUD_PROJECT)
 firestore_mcp_db = FirestoreMCPStore(config.GOOGLE_CLOUD_PROJECT)
 
+DEFAULT_SYSTEM_PROMPT = "You are a security analysis assistant. Analyze user prompts and use available tools when appropriate for security operations. Be decisive about tool usage."
+
 class JobStatus(Enum):
     PENDING = "pending"
     PROCESSING = "processing"
@@ -55,6 +57,7 @@ class Job:
     prior_messages: list = None
     react_turn_count: int = 0
     session_id: Optional[str] = None
+    system_prompt: Optional[str] = None
 
     def to_dict(self):
         return {
@@ -76,6 +79,7 @@ class Job:
             'prior_messages': self.prior_messages or [],
             'react_turn_count': self.react_turn_count,
             'session_id': self.session_id,
+            'system_prompt': self.system_prompt,
         }
 
     """
@@ -105,6 +109,7 @@ class Job:
             prior_messages=data.get('prior_messages', []),
             react_turn_count=data.get('react_turn_count', 0),
             session_id=data.get('session_id'),
+            system_prompt=data.get('system_prompt'),
         )
 
 class RedisJobQueue:
@@ -121,7 +126,7 @@ class RedisJobQueue:
     """
     Adding the job to the Redis Queue
     """    
-    def add_job(self, user_id: str, username: str, prompt: str, job_id: str, model: str = "llama3.2", react_mode: bool = False, prior_messages: list = None, react_turn_count: int = 0, session_id: Optional[str] = None) -> None:
+    def add_job(self, user_id: str, username: str, prompt: str, job_id: str, model: str = "llama3.2", react_mode: bool = False, prior_messages: list = None, react_turn_count: int = 0, session_id: Optional[str] = None, system_prompt: Optional[str] = None) -> None:
         job = Job(
             job_id=job_id,
             user_id=user_id,
@@ -134,6 +139,7 @@ class RedisJobQueue:
             prior_messages=prior_messages or [],
             react_turn_count=react_turn_count,
             session_id=session_id,
+            system_prompt=system_prompt,
         )
         
         # Store job data
@@ -355,7 +361,7 @@ class LLMProcessor:
 
         return used_servers, tool_call_results
 
-    def process_prompt(self, job_id: str, prompt: str, job_queue, user_id: str, model: str = "llama3.2", react_mode: bool = False, prior_messages: list = None, react_turn_count: int = 0) -> Dict[str, Any]:
+    def process_prompt(self, job_id: str, prompt: str, job_queue, user_id: str, model: str = "llama3.2", react_mode: bool = False, prior_messages: list = None, react_turn_count: int = 0, system_prompt: Optional[str] = None) -> Dict[str, Any]:
         """Process a prompt with LLM and MCP integration"""
         try:
             # Update progress
@@ -412,7 +418,7 @@ class LLMProcessor:
             messages = [
                 {
                     "role": "system", 
-                    "content": "You are a security analysis assistant. Analyze user prompts and use available tools when appropriate for security operations. Be decisive about tool usage."
+                    "content": system_prompt or DEFAULT_SYSTEM_PROMPT
                 },
                 {
                     "role": "user", 
@@ -707,7 +713,7 @@ def worker_process(redis_url: str):
                     
                     # Process the job
                     print("user_id", user_id)
-                    result = processor.process_prompt(job_id, job.prompt, job_queue, user_id, job.model, job.react_mode, job.prior_messages, job.react_turn_count)
+                    result = processor.process_prompt(job_id, job.prompt, job_queue, user_id, job.model, job.react_mode, job.prior_messages, job.react_turn_count, job.system_prompt)
                     
                     # Update job with result
                     job_queue.update_job(

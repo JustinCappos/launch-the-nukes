@@ -28,6 +28,18 @@ firestore_mcp_db = FirestoreMCPStore(config.GOOGLE_CLOUD_PROJECT)
 
 DEFAULT_SYSTEM_PROMPT = "You are a security analysis assistant. Analyze user prompts and use available tools when appropriate for security operations. Be decisive about tool usage."
 
+def _cloud_run_auth_headers(url: str) -> Dict[str, str]:
+    if ".run.app" not in url:
+        return {}
+    try:
+        import google.auth.transport.requests
+        from google.oauth2 import id_token
+        req = google.auth.transport.requests.Request()
+        return {"Authorization": f"Bearer {id_token.fetch_id_token(req, url)}"}
+    except Exception as e:
+        print(f"Could not fetch ID token for {url}: {e}")
+        return {}
+
 class JobStatus(Enum):
     PENDING = "pending"
     PROCESSING = "processing"
@@ -274,8 +286,10 @@ class LLMProcessor:
             
             # Use longer timeout for Cloud Run internal communication
             timeout = 30.0 if config.is_production else 10.0
-            client = httpx.Client(timeout=timeout)
             
+            headers = _cloud_run_auth_headers(ollama_url)
+            client = httpx.Client(timeout=timeout, headers=headers)
+
             # Check if service is responding
             response = client.get(f"{ollama_url}/api/tags")
             if response.status_code != 200:
@@ -888,7 +902,9 @@ def check_services():
             
         print(f"🔍 Checking Ollama health at: {ollama_url}")
         
-        client = httpx.Client(timeout=5.0)
+
+        headers = _cloud_run_auth_headers(ollama_url)
+        client = httpx.Client(timeout=5.0, headers=headers)
         response = client.get(f"{ollama_url}/api/tags")
         if response.status_code == 200:
             print("✅ Ollama service is running")

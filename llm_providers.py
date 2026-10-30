@@ -92,7 +92,17 @@ class OllamaProvider(LLMProvider):
     def _init_client(self):
         try:
             import httpx
-            self.client = httpx.Client(timeout=300.0)
+            headers = {}
+            if ".run.app" in self.base_url:
+                try:
+                    import google.auth.transport.requests
+                    from google.oauth2 import id_token
+                    req = google.auth.transport.requests.Request()
+                    token = id_token.fetch_id_token(req, self.base_url)
+                    headers["Authorization"] = f"Bearer {token}"
+                except Exception as e:
+                    logger.warning(f"Could not fetch ID token for {self.base_url}: {e}")
+            self.client = httpx.Client(timeout=300.0, headers=headers)
         except ImportError:
             logger.warning("httpx not available. Ollama provider will use mock responses.")
 

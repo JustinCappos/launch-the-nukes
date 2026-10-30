@@ -141,12 +141,19 @@ gcloud run deploy launch-nukes-ollama \
     --set-env-vars="OLLAMA_HOST=0.0.0.0,OLLAMA_PORT=11434,OLLAMA_ORIGINS=*" \
     --update-annotations="deploy.nonce/timestamp=$DEPLOY_NONCE"
 
-# Allow unauthenticated access to Ollama service
-echo "🔓 Setting up public access for Ollama AI service..."
+# Restrict Ollama service 
+echo "🔒 Ollama AI service to service account..."
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 gcloud run services add-iam-policy-binding launch-nukes-ollama \
-    --member="allUsers" \
+    --member="serviceAccount:${RUNTIME_SA}" \
     --role="roles/run.invoker" \
     --region=$REGION
+# Strip any legacy public binding from prior deploys (a no-op if absent)
+gcloud run services remove-iam-policy-binding launch-nukes-ollama \
+    --member="allUsers" \
+    --role="roles/run.invoker" \
+    --region=$REGION || true
 
 # Get Ollama service URL
 OLLAMA_CLOUD_URL=$(gcloud run services describe launch-nukes-ollama --region=$REGION --format="value(status.url)")

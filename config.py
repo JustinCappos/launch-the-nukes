@@ -18,6 +18,9 @@ class Config:
     
     # Redis settings
     REDIS_URL: str = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+
+    # SQLite settings
+    SQLITE_PATH: str = os.environ.get('SQLITE_PATH', 'data/jobs.db')
     
     # Job processing settings
     NUM_WORKERS: int = int(os.environ.get('NUM_WORKERS', '2'))

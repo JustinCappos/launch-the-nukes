@@ -21,10 +21,10 @@ import redis
 from llm_providers import OllamaProvider
 from mcp_integration import MCPClient
 from config import config
-from firestore import FirestoreJobStore, FirestoreMCPStore
+from sqlite_store import SqliteJobStore, SqliteMCPStore
 
-firestore_jobs_db = FirestoreJobStore(config.GOOGLE_CLOUD_PROJECT)
-firestore_mcp_db = FirestoreMCPStore(config.GOOGLE_CLOUD_PROJECT)
+jobs_db = SqliteJobStore(config.SQLITE_PATH)
+mcp_db = SqliteMCPStore(config.SQLITE_PATH)
 
 DEFAULT_SYSTEM_PROMPT = "You are a security analysis assistant. Analyze user prompts and use available tools when appropriate for security operations. Be decisive about tool usage."
 
@@ -667,11 +667,11 @@ class LLMProcessor:
             # Updated the Redis Queue - this will be removed in further commits when the DB structure has been thoroughly tested
             job_queue.update_job(job_id, progress=100, progress_message="Completed")
             
-            # Updated the firestore with final results of the prompt to be stored in the database
-            firestore_jobs_db.update_job(job_id, progress=100, progress_message="Completed", result=result, completed_at=datetime.now())
-            
+            # Updated with final results of the prompt to be stored in the database
+            jobs_db.update_job(job_id, progress=100, progress_message="Completed", result=result, completed_at=datetime.now())
+
             # Updated the triggered MCP server collection with used servers for that specific user id
-            firestore_mcp_db.update_mcp_triggered(user_id, used_servers)
+            mcp_db.update_mcp_triggered(user_id, used_servers)
             
             return result
             

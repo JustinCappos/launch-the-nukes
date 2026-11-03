@@ -16,7 +16,6 @@ google-auth-httplib2==0.2.0
 google-cloud-appengine-logging==1.6.2
 google-cloud-audit-log==0.3.2
 google-cloud-core==2.4.3
-google-cloud-firestore==2.21.0
 google-cloud-logging==3.12.1
 google-cloud-redis==2.18.1
 google-cloud-run==0.11.0

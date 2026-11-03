@@ -2,21 +2,19 @@
 Pytest configuration and fixtures for launch-the-nukes tests.
 """
 
-import pytest
-import tempfile
 import os
+import tempfile
+
+# Must run before app/job_processor are imported — they open the SQLite file
+# at module load time. Point them at a session-wide temp file.
+os.environ.setdefault("SQLITE_PATH", os.path.join(tempfile.mkdtemp(), "test.db"))
+
+import pytest
 import shutil
 from pathlib import Path
 from yaml_mcp_server_factory import YAMLMCPServerFactory
 from mcp_integration import MCPClient
-from unittest.mock import patch, MagicMock
 
-# Added Firestore mock_client to bypass the Credential requirement for the test cases
-@pytest.fixture(autouse=True)
-def mock_firestore():
-    with patch("google.cloud.firestore.Client") as mock_client:
-        mock_client.return_value = MagicMock()
-        yield mock_client
 
 @pytest.fixture
 def temp_yaml_dir():

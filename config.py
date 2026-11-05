@@ -31,16 +31,15 @@ class Config:
     PORT: int = int(os.environ.get('PORT', '8080'))
     
     # LLM Provider settings
-    OLLAMA_URL: str = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
-    OLLAMA_CLOUD_URL: Optional[str] = os.environ.get('OLLAMA_CLOUD_URL')  # Cloud Run Ollama service
+    LLM_SERVICE_URL: str = os.environ.get('LLM_SERVICE_URL', 'http://localhost:11434')
+    LLM_SERVICE_CLOUD_URL: Optional[str] = os.environ.get('LLM_SERVICE_CLOUD_URL')
     GEMINI_API_KEY: Optional[str] = os.environ.get('GEMINI_API_KEY')
-    
-    # Use cloud Ollama in production, local in development
+
     @property
-    def effective_ollama_url(self) -> str:
-        if self.is_production and self.OLLAMA_CLOUD_URL:
-            return self.OLLAMA_CLOUD_URL
-        return self.OLLAMA_URL
+    def effective_llm_service_url(self) -> str:
+        if self.is_production and self.LLM_SERVICE_CLOUD_URL:
+            return self.LLM_SERVICE_CLOUD_URL
+        return self.LLM_SERVICE_URL
     
     # Google Cloud settings
     GOOGLE_CLOUD_PROJECT: Optional[str] = os.environ.get('GOOGLE_CLOUD_PROJECT', 'launch-the-nukes')

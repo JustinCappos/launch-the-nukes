@@ -275,25 +275,24 @@ class LLMProcessor:
     def __init__(self):
         self.mcp_client = MCPClient()
     
-    def _check_ollama_health(self) -> bool:
-        """Check if Ollama is running and has models available"""
+    def _check_llm_service_health(self) -> bool:
+        """Check if the LLM service is running and has models available"""
         try:
             import httpx
             from config import config
-            ollama_url = config.effective_ollama_url
-            
-            print(f"🔍 Checking Ollama health at: {ollama_url}")
-            
-            # Use longer timeout for Cloud Run internal communication
+            llm_service_url = config.effective_llm_service_url
+
+            print(f"🔍 Checking LLM service health at: {llm_service_url}")
+
             timeout = 30.0 if config.is_production else 10.0
             
-            headers = _cloud_run_auth_headers(ollama_url)
+
+            headers = _cloud_run_auth_headers(llm_service_url)
             client = httpx.Client(timeout=timeout, headers=headers)
 
-            # Check if service is responding
-            response = client.get(f"{ollama_url}/api/tags")
+            response = client.get(f"{llm_service_url}/api/tags")
             if response.status_code != 200:
-                print(f"❌ Ollama health check failed: HTTP {response.status_code}")
+                print(f"❌ LLM service health check failed: HTTP {response.status_code}")
                 print(f"   Response: {response.text}")
                 return False
             
@@ -301,16 +300,16 @@ class LLMProcessor:
             models_data = response.json()
             models = models_data.get("models", [])
             
+
             if not models:
-                print("⚠️ Ollama is running but no models are loaded yet")
-                # In production, we might want to be more lenient about this
+                print("⚠️ LLM service is running but no models are loaded yet")
                 if config.is_production:
                     print("   Allowing processing to continue in production mode")
                     return True
                 return False
             
-            print(f"✅ Ollama health check passed - {len(models)} models available")
-            for model in models[:3]:  # Show first 3 models
+            print(f"✅ LLM service health check passed - {len(models)} models available")
+            for model in models[:3]:
                 model_name = model.get('name', 'unknown')
                 print(f"   - {model_name}")
             if len(models) > 3:
@@ -319,18 +318,16 @@ class LLMProcessor:
             return True
             
         except httpx.ConnectError as e:
-            print(f"❌ Ollama connection failed: {e}")
-            print(f"   URL: {ollama_url}")
-            if config.is_production:
-                print("   This might be a temporary network issue in Cloud Run")
+            print(f"❌ LLM service connection failed: {e}")
+            print(f"   URL: {llm_service_url}")
             return False
         except httpx.TimeoutException as e:
-            print(f"❌ Ollama request timeout: {e}")
-            print(f"   URL: {ollama_url}")
+            print(f"❌ LLM service request timeout: {e}")
+            print(f"   URL: {llm_service_url}")
             return False
         except Exception as e:
-            print(f"❌ Ollama health check failed: {e}")
-            print(f"   URL: {ollama_url}")
+            print(f"❌ LLM service health check failed: {e}")
+            print(f"   URL: {llm_service_url}")
             return False
     
     def _execute_tool_calls(self, tool_calls: list, tool_to_server_map: dict, tools_by_server: dict) -> tuple:
@@ -381,15 +378,15 @@ class LLMProcessor:
             # Update progress
             job_queue.update_job(job_id, progress=2, progress_message="Checking service health...")
             
-            # Check if Ollama is running with retry logic
+            # Check if LLM service is running with retry logic
             max_retries = 3
             retry_delay = 5  # seconds
             
             for attempt in range(max_retries):
-                if self._check_ollama_health():
+                if self._check_llm_service_health():
                     break
                 elif attempt < max_retries - 1:
-                    print(f"⏳ Ollama health check failed (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                    print(f"⏳ LLM service health check failed (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
                     job_queue.update_job(job_id, progress=2, progress_message=f"Waiting for LLM service (attempt {attempt + 1}/{max_retries})...")
                     time.sleep(retry_delay)
                 else:
@@ -454,9 +451,19 @@ class LLMProcessor:
             
             response = llm.generate_with_tools_streaming(messages, ollama_tools, progress_callback)
             
-            # Check if we got a valid response or an error
-            if "Error:" in response.get("content", ""):
-                raise Exception(f"LLM Error: {response.get('content', 'Unknown error')}")
+            content = response.get("content", "")
+            if "504" in content and "Error:" in content:
+                job_queue.update_job(
+                    job_id,
+                    progress=15,
+                    progress_message="Warming up the model, this takes ~15s on first run...",
+                )
+                time.sleep(5)
+                response = llm.generate_with_tools_streaming(messages, ollama_tools, progress_callback)
+                content = response.get("content", "")
+
+            if "Error:" in content:
+                raise Exception(f"LLM Error: {content or 'Unknown error'}")
             
             job_queue.update_job(job_id, progress=80, progress_message="Processing tool calls...")
             
@@ -892,28 +899,27 @@ def check_services():
         print(f"❌ Redis not accessible: {e}")
         print("   Please start Redis with: redis-server")
     
-    # Check Ollama
+    # Check LLM service
     try:
         import httpx
         from config import config
         
-        # Use the configured Ollama URL, falling back to cloud URL if available
-        ollama_url = config.effective_ollama_url
-            
-        print(f"🔍 Checking Ollama health at: {ollama_url}")
         
 
-        headers = _cloud_run_auth_headers(ollama_url)
+        llm_service_url = config.effective_llm_service_url
+
+        print(f"🔍 Checking LLM service health at: {llm_service_url}")
+
+        headers = _cloud_run_auth_headers(llm_service_url)
         client = httpx.Client(timeout=5.0, headers=headers)
-        response = client.get(f"{ollama_url}/api/tags")
+        response = client.get(f"{llm_service_url}/api/tags")
         if response.status_code == 200:
-            print("✅ Ollama service is running")
+            print("✅ LLM service is running")
         else:
-            print("⚠️  Ollama service responded with error")
+            print("⚠️  LLM service responded with error")
     except Exception as e:
-        print(f"❌ Ollama connection failed: {e}")
-        print("Ollama service is not running")
-        print("   Please start Ollama with: ollama serve")
+        print(f"❌ LLM service connection failed: {e}")
+        print("LLM service is not reachable")
     
     # Check MCP servers
     try:

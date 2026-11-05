@@ -106,7 +106,7 @@ The application uses a centralized configuration system that automatically detec
 | `HOST` | Server host | `127.0.0.1` | `0.0.0.0` |
 | `PORT` | Server port | `8080` | `8080` |
 | `GOOGLE_CLOUD_PROJECT` | GCP project ID | - | Required in production |
-| `OLLAMA_URL` | Ollama server URL | `http://localhost:11434` | - |
+| `LLM_SERVICE_URL` | URL of the LLM service (Ollama by default) | `http://localhost:11434` | - |
 | `GEMINI_API_KEY` | Google AI API key | - | Optional |
 
 ### Local Configuration (.env file)
@@ -117,7 +117,7 @@ DEBUG=true
 SECRET_KEY=your-secret-key-here
 REDIS_URL=redis://localhost:6379/0
 NUM_WORKERS=2
-OLLAMA_URL=http://localhost:11434
+LLM_SERVICE_URL=http://localhost:11434
 GEMINI_API_KEY=your-gemini-key-here
 ```
 

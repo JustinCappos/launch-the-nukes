@@ -30,7 +30,7 @@ class LLMProvider(ABC):
 class OllamaProvider(LLMProvider):
     def __init__(self, model: str = "llama3.2", base_url: str = None):
         if base_url is None:
-            base_url = config.effective_ollama_url
+            base_url = config.effective_llm_service_url
         self.model = model
         self.base_url = base_url
         self.client = None

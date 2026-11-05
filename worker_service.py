@@ -106,7 +106,7 @@ def run_workers():
         
         logger.info(f"🚀 Starting job worker with {num_workers} processes")
         logger.info(f"📡 Redis URL: {redis_url}")
-        logger.info(f"🧠 Ollama URL: {config.effective_ollama_url}")
+        logger.info(f"🧠 LLM service URL: {config.effective_llm_service_url}")
         logger.info(f"🏢 Production mode: {config.is_production}")
         
         # Create and start job manager

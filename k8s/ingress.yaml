@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: llms
+  labels:
+    app: llms
+    source: launch-the-nukes
+spec:
+  ingressClassName: haproxy
+  rules:
+    - host: launch-the-nukes.users.hsrn.nyu.edu
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: llms
+                port:
+                  number: 80

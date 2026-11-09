@@ -47,7 +47,7 @@ setup_local() {
     export NUM_WORKERS=${NUM_WORKERS:-2}
     export HOST=${HOST:-127.0.0.1}
     export PORT=${PORT:-8080}
-    export OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
+    export LLM_SERVICE_URL=${LLM_SERVICE_URL:-http://localhost:11434}
     export MCP_CACHE_DURATION=${MCP_CACHE_DURATION:-300}
     export JOB_TIMEOUT=${JOB_TIMEOUT:-300}
     
